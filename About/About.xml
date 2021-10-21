@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+	<name>Cherry Picker (dev)</name>
+	<author>Owlchemist</author>
+	<packageId>Owlchemist.CherryPicker</packageId>
+	<supportedVersions>
+		<li>1.3</li>
+	</supportedVersions>
+	<url>https://github.com/Owlchemist/moonlight</url>
+	<description>If you've ever found a mod you've liked except for one little part of it, this mod allows you to selectively remove content. It works by psuedo-removing the definitions, meaning they remain in the game so as not to cause in errors, but all references to them are cut so they do not show up anywhere.</description>
+	
+	<modDependencies>
+		<li>
+			<packageId>brrainz.harmony</packageId>
+			<displayName>Harmony</displayName>
+			<steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+		</li>
+	</modDependencies>
+</ModMetaData>
