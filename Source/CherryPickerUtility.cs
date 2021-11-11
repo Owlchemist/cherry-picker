@@ -9,36 +9,39 @@ using static CherryPicker.ModSettings_CherryPicker;
  
 namespace CherryPicker
 {
-	#if DEBUG
-	[HotSwap.HotSwappable]
-	#endif
     internal static class CherryPickerUtility
 	{
 		public static Def[] allDefs; //All defs this mod supports editting
 		public static HashSet<string> workingList = new HashSet<string>(); //A copy of the user's removed defs but only the defs loaded in this modlist
 		public static List<string> report = new List<string>(); //Gives a console print of changes made
 		public static Dictionary<string, string> labelCache = new Dictionary<string, string>();
+		public static HashSet<Def> hardRemovedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
 		public static bool filtered; //Tells the script the filter box is being used
 		public static int lineNumber = 0; //Handles row highlighting and also dynamic window size for the scroll bar
 		public static float cellPosition = 8f; //Tracks the vertical pacement in pixels
+		public static System.Reflection.Assembly rootAssembly;
 		public const float lineHeight = 22f; //Text.LineHeight + options.verticalSpacing;
 
 		public static void Setup()
 		{
+			rootAssembly = typeof(ThingDef).Assembly;
+
 			var timer = new System.Diagnostics.Stopwatch();
   			timer.Start();
 
 			//Fetch all our def lists across multiple categories
-			System.Object[] defLists = new System.Object[7];
-			defLists[0] = DefDatabase<ThingDef>.AllDefs.Where(x => !x.IsBlueprint && !x.IsFrame && !x.IsCorpse && !x.isUnfinishedThing &&
+			System.Object[] defLists = new System.Object[9];
+			defLists[0] = DefDatabase<ThingDef>.AllDefsListForReading.Where(x => !x.IsBlueprint && !x.IsFrame && !x.IsCorpse && !x.isUnfinishedThing &&
 							(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn));
-			defLists[1] = DefDatabase<TerrainDef>.AllDefs;
-			defLists[2] = DefDatabase<RecipeDef>.AllDefs;
-			defLists[3] = DefDatabase<TraitDef>.AllDefs;
-			defLists[4] = DefDatabase<ResearchProjectDef>.AllDefs.Where(x => DefDatabase<ResearchProjectDef>.AllDefs.
+			defLists[1] = DefDatabase<TerrainDef>.AllDefsListForReading;
+			defLists[2] = DefDatabase<RecipeDef>.AllDefsListForReading;
+			defLists[3] = DefDatabase<TraitDef>.AllDefsListForReading;
+			defLists[4] = DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(x => DefDatabase<ResearchProjectDef>.AllDefsListForReading.
 							Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true)));
-			defLists[5] = DefDatabase<DesignationCategoryDef>.AllDefs;
-			defLists[6] = DefDatabase<ThingStyleDef>.AllDefs;
+			defLists[5] = DefDatabase<DesignationCategoryDef>.AllDefsListForReading;
+			defLists[6] = DefDatabase<ThingStyleDef>.AllDefsListForReading;
+			defLists[7] = DefDatabase<QuestScriptDef>.AllDefsListForReading.Where(x => !DefDatabase<IncidentDef>.AllDefsListForReading.Any(y => y.questScriptDef == x));
+			defLists[8] = DefDatabase<IncidentDef>.AllDefsListForReading;
 
 			//Temp working collection to merge everything together
 			var tmp = new List<System.Object>();
@@ -96,27 +99,38 @@ namespace CherryPicker
 
 		public static Type GetDefType(string def)
 		{
-			return Type.GetType(def.Split('/')[0]);
+			return rootAssembly.GetType("Verse." + def.Split('/')[0]);
 		}
 		public static Def GetDef(string key)
 		{
 			return GetDef(GetDefName(key), GetDefType(key));
 		}
-		public static Def GetDef(string key, Type type)
+		public static Def GetDef(string defName, Type type)
 		{
-			if ((type == null || type == typeof(ThingDef)) && DefDatabase<ThingDef>.defsByName.TryGetValue(key, out ThingDef thingDef)) return thingDef;
+			if (defName.NullOrEmpty()) return null;
 			
-			if ((type == null || type == typeof(TerrainDef)) && DefDatabase<TerrainDef>.defsByName.TryGetValue(key, out TerrainDef terrainDef)) return terrainDef;
+			if ((type == null || type == typeof(ThingDef)) && DefDatabase<ThingDef>.defsByName.TryGetValue(defName, out ThingDef thingDef)) return thingDef;
 			
-			if ((type == null || type == typeof(RecipeDef)) && DefDatabase<RecipeDef>.defsByName.TryGetValue(key, out RecipeDef recipeDef)) return recipeDef;
+			if ((type == null || type == typeof(TerrainDef)) && DefDatabase<TerrainDef>.defsByName.TryGetValue(defName, out TerrainDef terrainDef)) return terrainDef;
 			
-			if ((type == null || type == typeof(TraitDef)) && DefDatabase<TraitDef>.defsByName.TryGetValue(key, out TraitDef traitDef)) return traitDef;
+			if ((type == null || type == typeof(RecipeDef)) && DefDatabase<RecipeDef>.defsByName.TryGetValue(defName, out RecipeDef recipeDef)) return recipeDef;
 			
-			if ((type == null || type == typeof(ResearchProjectDef)) && DefDatabase<ResearchProjectDef>.defsByName.TryGetValue(key, out ResearchProjectDef researchProjectDef)) return researchProjectDef;
+			if ((type == null || type == typeof(TraitDef)) && DefDatabase<TraitDef>.defsByName.TryGetValue(defName, out TraitDef traitDef)) return traitDef;
 			
-			if ((type == null || type == typeof(DesignationCategoryDef)) && DefDatabase<DesignationCategoryDef>.defsByName.TryGetValue(key, out DesignationCategoryDef designationCategoryDef)) return designationCategoryDef;
+			if ((type == null || type == typeof(ResearchProjectDef)) && DefDatabase<ResearchProjectDef>.defsByName.TryGetValue(defName, out ResearchProjectDef researchProjectDef)) return researchProjectDef;
 			
-			if ((type == null || type == typeof(ThingStyleDef)) && DefDatabase<ThingStyleDef>.defsByName.TryGetValue(key, out ThingStyleDef thingStyleDef)) return thingStyleDef;
+			if ((type == null || type == typeof(DesignationCategoryDef)) && DefDatabase<DesignationCategoryDef>.defsByName.TryGetValue(defName, out DesignationCategoryDef designationCategoryDef)) return designationCategoryDef;
+			
+			if ((type == null || type == typeof(ThingStyleDef)) && DefDatabase<ThingStyleDef>.defsByName.TryGetValue(defName, out ThingStyleDef thingStyleDef)) return thingStyleDef;
+
+			if ((type == null || type == typeof(QuestScriptDef)) && DefDatabase<QuestScriptDef>.defsByName.TryGetValue(defName, out QuestScriptDef questScriptDef)) return questScriptDef;
+
+			if ((type == null || type == typeof(IncidentDef)) && DefDatabase<IncidentDef>.defsByName.TryGetValue(defName, out IncidentDef incidentDef)) return incidentDef;
+
+			foreach (Def hardRemovedDef in hardRemovedDefs)
+			{
+				if (hardRemovedDef.defName == defName && hardRemovedDef.GetType().Name == type?.Name) return hardRemovedDef;
+			}
 			
 			return null;
 		}
@@ -136,7 +150,8 @@ namespace CherryPicker
 			workingList.Clear();
 			foreach (var key in removedDefs)
 			{
-				if (allDefs.Any(x => x == GetDef(key))) workingList.Add(key);
+				var def = GetDef(key);
+				if (allDefs.Any(x => x == def)) workingList.Add(key);
 			}
 		}
 
@@ -180,26 +195,30 @@ namespace CherryPicker
 		public static void CheckboxLabeled(Rect rect, string data, string label, ref bool checkOn, Def def)
 		{
 			Rect leftHalf = rect.LeftHalf();
+			
+			//Is there an icon?
 			Rect iconRect = new Rect(leftHalf.x, leftHalf.y, 32f, leftHalf.height);
-			Rect dataRect = new Rect(iconRect.xMax, iconRect.y, leftHalf.width - 32f, leftHalf.height);
+			Texture2D icon = null;
+			if (def is BuildableDef) icon = ((BuildableDef)def).uiIcon;
+			else if (def is RecipeDef) icon = ((RecipeDef)def).ProducedThingDef?.uiIcon;
+			if (icon != null) GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true, 1f, Color.white, 0f, 0f);
 
-			if (def is BuildableDef)
+			//If there is a label, split the cell in half, otherwise use the full cell for data
+			if (!label.NullOrEmpty())
 			{
-				BuildableDef thingDef = def as BuildableDef;
-				Texture2D icon = thingDef.uiIcon;
-				if (icon != null) GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true, 1f, Color.white, 0f, 0f);
+				Rect dataRect = new Rect(iconRect.xMax, iconRect.y, leftHalf.width - 32f, leftHalf.height);
+
+				Widgets.Label(dataRect, data?.Truncate(dataRect.width - 12f, InspectPaneUtility.truncatedLabelsCached));
+				Rect rightHalf = rect.RightHalf();
+				Widgets.Label(rightHalf, label.Truncate(rightHalf.width - 12f, InspectPaneUtility.truncatedLabelsCached));
 			}
-			else if (def is RecipeDef)
+			else
 			{
-				RecipeDef recipeDef = def as RecipeDef;
-				Texture2D icon = recipeDef.ProducedThingDef?.uiIcon;
-				if (icon != null) GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true, 1f, Color.white, 0f, 0f);
+				Rect dataRect = new Rect(iconRect.xMax, iconRect.y, rect.width - 32f, leftHalf.height);
+				Widgets.Label(dataRect, data?.Truncate(dataRect.width - 12f, InspectPaneUtility.truncatedLabelsCached));
 			}
 
-			Widgets.Label(dataRect, data?.Truncate(dataRect.width - 12f, InspectPaneUtility.truncatedLabelsCached));
-			Rect rightHalf = rect.RightHalf();
-			Widgets.Label(rightHalf, label?.Truncate(rightHalf.width - 12f, InspectPaneUtility.truncatedLabelsCached));
-
+			//Checkbox
 			if (Widgets.ButtonInvisible(rect, true))
 			{
 				checkOn = !checkOn;
@@ -230,16 +249,9 @@ namespace CherryPicker
 						removedDefs.Remove(key);
 						restartNeeded = true;
 					}
-					else
-					{
-						report.Add(GetDefName(key));
-						PsuedoRemoveDef(def);
-					}
+					else report.Add(PsuedoRemoveDef(def) ? "\n - " + key : ("\n - Failed: " + key).Colorize(Color.yellow));
 				}
 			}
-
-			//Refresh the working list
-			MakeWorkingList();
 
 			if (restartNeeded)
 			{
@@ -247,7 +259,7 @@ namespace CherryPicker
 			}
 		}
 
-		static void PsuedoRemoveDef(Def def)
+		static bool PsuedoRemoveDef(Def def)
 		{
 			bool reloadRequired = false;
 			try
@@ -326,9 +338,9 @@ namespace CherryPicker
 								thingDef.apparel.ideoDesireDisallowedFactionCategoryTags?.Clear();
 							}
 							thingDef.weaponTags?.Clear();
-							DefDatabase<PawnKindDef>.AllDefs.Where(x => x.apparelRequired?.Remove(thingDef) ?? false);
+							DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => x.apparelRequired?.Remove(thingDef));
 							thingDef.techHediffsTags?.Clear();
-							DefDatabase<PawnKindDef>.AllDefs.Where(x => x.techHediffsRequired?.Remove(thingDef) ?? false);
+							DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => x.techHediffsRequired?.Remove(thingDef));
 							thingDef.comps?.Clear(); //Some scripts filter-select defs by their components. This should help exclude them
 						}
 					}
@@ -350,7 +362,7 @@ namespace CherryPicker
 						//Omits from migration event
 						thingDef.race.herdMigrationAllowed = false;
 						//Omits from manhunter event
-						DefDatabase<PawnKindDef>.AllDefsListForReading.Where(x => x.defName == def.defName).ToList().ForEach(y => y.canArriveManhunter = false);
+						DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => { if (x.defName == def.defName) x.canArriveManhunter = false ;} );
 
 						/*
 						if (thingDef.race.animalType == AnimalType.Dryad)
@@ -363,15 +375,14 @@ namespace CherryPicker
 						foreach (var biomeDef in biomeDefs)
 						{
 							//Prevent biome spawning
-							biomeDef.wildAnimals?.Where(x => x.animal?.race == thingDef).ToList().ForEach(x => x.commonality = 0);
+							biomeDef.wildAnimals?.ForEach(x => {if (x.animal?.race == thingDef) x.commonality = 0 ;} );
 						}
 					}
 				}
 				else if (def is TerrainDef)
 				{
-					TerrainDef terrainDef = def as TerrainDef;
-					var originalDesignationCategory = terrainDef.designationCategory;
-					terrainDef.designationCategory = null; //Hide from architect menus
+					var originalDesignationCategory = ((TerrainDef)def).designationCategory;
+					((TerrainDef)def).designationCategory = null; //Hide from architect menus
 					if (originalDesignationCategory != null) originalDesignationCategory.ResolveReferences();
 
 				}
@@ -387,18 +398,19 @@ namespace CherryPicker
 				}
 				else if (def is TraitDef)
 				{
+					hardRemovedDefs.Add(def);
 					DefDatabase<TraitDef>.Remove(def as TraitDef);
 				}
 				else if (def is ResearchProjectDef)
 				{
+					hardRemovedDefs.Add(def);
 					DefDatabase<ResearchProjectDef>.Remove(def as ResearchProjectDef);
 				}
 				else if (def is DesignationCategoryDef)
 				{
-					DesignationCategoryDef designationCategoryDef = def as DesignationCategoryDef;
-					DefDatabase<DesignationCategoryDef>.Remove(designationCategoryDef);
-
-					DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x => {if (x.designationCategory == designationCategoryDef) x.designationCategory = null; } );
+					hardRemovedDefs.Add(def);
+					DefDatabase<DesignationCategoryDef>.Remove(def as DesignationCategoryDef);
+					DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x => {if (x.designationCategory == def) x.designationCategory = null; } );
 
 					if (Current.ProgramState == ProgramState.Playing) reloadRequired = true;
 				}
@@ -418,17 +430,35 @@ namespace CherryPicker
 						styleCategoryDef.thingDefStyles.Remove(thingDefStyle);
 					}
 				}
+				else if (def is QuestScriptDef)
+				{
+					QuestScriptDef questScriptDef = def as QuestScriptDef;
+					
+					questScriptDef.rootSelectionWeight = 0; //Makes the IsRootRandomSelected getter return false, which excludes from ChooseNaturalRandomQuest
+					questScriptDef.decreeSelectionWeight = 0; //Excludes decrees
+				}
+				else if (def is IncidentDef)
+				{
+					IncidentDef incidentDef = def as IncidentDef;
+					
+					incidentDef.baseChance = 0;
+					incidentDef.baseChanceWithRoyalty = 0;
+					incidentDef.earliestDay = int.MaxValue;
+					incidentDef.minThreatPoints = float.MaxValue;
+					incidentDef.minPopulation = int.MaxValue;
+				}
+				else return false;
 			}
 			//In the event there's a bug, this will at least allow the user to not be stuck in the options menu
 			catch (System.NullReferenceException)
 			{
-				Log.Warning("[Cherry Picker] Unable to process "  + def.defName);
-				return;
+				return false;
 			}
 			if (reloadRequired)
 			{
 				Find.WindowStack.Add(new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog));
 			}
+			return true;
 		}
 	}
 }

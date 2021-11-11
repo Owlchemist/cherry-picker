@@ -10,9 +10,6 @@ using static CherryPicker.CherryPickerUtility;
  
 namespace CherryPicker
 {
-	#if DEBUG
-	[HotSwap.HotSwappable]
-	#endif
     public class Mod_CherryPicker : Mod
 	{
 		public Mod_CherryPicker(ModContentPack content) : base(content)
