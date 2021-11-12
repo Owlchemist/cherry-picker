@@ -30,7 +30,7 @@ namespace CherryPicker
   			timer.Start();
 
 			//Fetch all our def lists across multiple categories
-			System.Object[] defLists = new System.Object[9];
+			System.Object[] defLists = new System.Object[10];
 			defLists[0] = DefDatabase<ThingDef>.AllDefsListForReading.Where(x => !x.IsBlueprint && !x.IsFrame && !x.IsCorpse && !x.isUnfinishedThing &&
 							(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn));
 			defLists[1] = DefDatabase<TerrainDef>.AllDefsListForReading;
@@ -42,6 +42,7 @@ namespace CherryPicker
 			defLists[6] = DefDatabase<ThingStyleDef>.AllDefsListForReading;
 			defLists[7] = DefDatabase<QuestScriptDef>.AllDefsListForReading.Where(x => !DefDatabase<IncidentDef>.AllDefsListForReading.Any(y => y.questScriptDef == x));
 			defLists[8] = DefDatabase<IncidentDef>.AllDefsListForReading;
+			defLists[9] = DefDatabase<HediffDef>.AllDefsListForReading;
 
 			//Temp working collection to merge everything together
 			var tmp = new List<System.Object>();
@@ -126,6 +127,8 @@ namespace CherryPicker
 			if ((type == null || type == typeof(QuestScriptDef)) && DefDatabase<QuestScriptDef>.defsByName.TryGetValue(defName, out QuestScriptDef questScriptDef)) return questScriptDef;
 
 			if ((type == null || type == typeof(IncidentDef)) && DefDatabase<IncidentDef>.defsByName.TryGetValue(defName, out IncidentDef incidentDef)) return incidentDef;
+
+			if ((type == null || type == typeof(HediffDef)) && DefDatabase<HediffDef>.defsByName.TryGetValue(defName, out HediffDef hediffDef)) return hediffDef;
 
 			foreach (Def hardRemovedDef in hardRemovedDefs)
 			{
@@ -249,7 +252,7 @@ namespace CherryPicker
 						removedDefs.Remove(key);
 						restartNeeded = true;
 					}
-					else report.Add(PsuedoRemoveDef(def) ? "\n - " + key : ("\n - Failed: " + key).Colorize(Color.yellow));
+					else report.Add(PsuedoRemoveDef(def) ? "\n - " + key : ("\n<color=red> - Failed: " + key + "</color>"));
 				}
 			}
 
@@ -269,8 +272,12 @@ namespace CherryPicker
 					ThingDef thingDef = def as ThingDef;
 					thingDef.BaseMarketValue = 0f; //Market value considered for some spawning
 					thingDef.tradeability = Tradeability.None; //Won't be sold or come from drop pods
+					thingDef.thingCategories?.ForEach(x => x.ThisAndChildCategoryDefs?.ToList().ForEach(y => y.childThingDefs?.Remove(thingDef)));
 					thingDef.thingCategories?.Clear(); //Filters
 					thingDef.thingSetMakerTags?.Clear(); //Quest rewards
+
+					//0'ing out the nutrition removes food from filters
+					if (thingDef.ingestible != null) thingDef.SetStatBaseValue(StatDefOf.Nutrition,0);
 
 					//Scenario starting items
 					DefDatabase<ScenarioDef>.AllDefsListForReading.ForEach(x => x.scenario.parts?.RemoveAll
@@ -331,6 +338,8 @@ namespace CherryPicker
 							//Apparel?
 							if (thingDef.apparel != null)
 							{
+								reloadRequired = true;
+
 								thingDef.apparel.tags?.Clear();
 								thingDef.apparel.defaultOutfitTags?.Clear();
 								thingDef.apparel.canBeDesiredForIdeo = false;
@@ -389,12 +398,10 @@ namespace CherryPicker
 				else if (def is RecipeDef)
 				{
 					RecipeDef recipeDef = def as RecipeDef;
-					foreach (ThingDef recipeUser in recipeDef.recipeUsers ?? Enumerable.Empty<ThingDef>())
-					{
-						recipeUser.recipes?.Remove(recipeDef);
-						recipeUser.allRecipesCached?.Remove(recipeDef);
-					}
-					recipeDef.recipeUsers?.Clear();
+				
+					recipeDef.recipeUsers?.ForEach(x => {x.recipes?.Remove(recipeDef); x.allRecipesCached?.Remove(recipeDef); });
+					DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x => {x.allRecipesCached?.Remove(recipeDef); x.recipes?.Remove(recipeDef);} );
+					recipeDef.requiredGiverWorkType = null;
 				}
 				else if (def is TraitDef)
 				{
@@ -454,9 +461,9 @@ namespace CherryPicker
 			{
 				return false;
 			}
-			if (reloadRequired)
+			if (reloadRequired && Current.ProgramState == ProgramState.Playing)
 			{
-				Find.WindowStack.Add(new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog));
+				//Find.WindowStack.Add(new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog));
 			}
 			return true;
 		}
