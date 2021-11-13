@@ -276,6 +276,12 @@ namespace CherryPicker
 					thingDef.thingCategories?.Clear(); //Filters
 					thingDef.thingSetMakerTags?.Clear(); //Quest rewards
 
+					//If mineable...
+					thingDef.deepCommonality = 0;
+					thingDef.deepCountPerCell = 0;
+					thingDef.deepCountPerPortion = 0;
+					thingDef.deepLumpSizeRange = IntRange.zero;
+
 					//0'ing out the nutrition removes food from filters
 					if (thingDef.ingestible != null) thingDef.SetStatBaseValue(StatDefOf.Nutrition,0);
 
@@ -322,15 +328,42 @@ namespace CherryPicker
 					//Buildables
 					if (thingDef.category == ThingCategory.Building)
 					{
+						//Remove gizmo
 						var originalDesignationCategory = thingDef.designationCategory;
 						thingDef.designationCategory = null; //Hide from architect menus
-						if (originalDesignationCategory != null) originalDesignationCategory.ResolveReferences();
+						originalDesignationCategory?.ResolveReferences();
+
 						thingDef.minifiedDef = null; //Removes from storage filters
 						thingDef.researchPrerequisites = null; //Removes from research UI
+
+						//If mineable
+						if (thingDef.building != null)
+						{
+							thingDef.building.mineableScatterCommonality = 0;
+							thingDef.building.mineableScatterLumpSizeRange = IntRange.zero;
+						}
+
+						//Check if used for runes/junk on map gen
+						DefDatabase<GenStepDef>.AllDefsListForReading.ForEach
+						(x =>
+							{
+								if (x.genStep.GetType() == typeof(GenStep_ScatterGroup))
+								{
+									x.genStep.ChangeType<GenStep_ScatterGroup>().groups.ForEach(y => y.things.RemoveAll(z => z.thing == thingDef));
+								}
+								else if (x.genStep.GetType() == typeof(GenStep_ScatterThings) && x.genStep.ChangeType<GenStep_ScatterThings>().thingDef == thingDef)
+								{
+									x.genStep.ChangeType<GenStep_ScatterThings>().clusterSize = 0;
+								}
+							}
+						);
 					}
 					//Items
 					else if (thingDef.category == ThingCategory.Item)
 					{
+						//Makes this stuff material not show up in generated items
+						if (thingDef.stuffProps != null) thingDef.stuffProps.commonality = 0;
+
 						thingDef.recipeMaker?.recipeUsers.Clear();
 						//Is this item equipment?
 						if (thingDef.thingClass == typeof(Apparel) || thingDef.equipmentType == EquipmentType.Primary)
@@ -392,7 +425,7 @@ namespace CherryPicker
 				{
 					var originalDesignationCategory = ((TerrainDef)def).designationCategory;
 					((TerrainDef)def).designationCategory = null; //Hide from architect menus
-					if (originalDesignationCategory != null) originalDesignationCategory.ResolveReferences();
+					originalDesignationCategory?.ResolveReferences();
 
 				}
 				else if (def is RecipeDef)
