@@ -30,7 +30,7 @@ namespace CherryPicker
   			timer.Start();
 
 			//Fetch all our def lists across multiple categories
-			System.Object[] defLists = new System.Object[10];
+			System.Object[] defLists = new System.Object[11];
 			defLists[0] = DefDatabase<ThingDef>.AllDefsListForReading.Where(x => !x.IsBlueprint && !x.IsFrame && !x.IsCorpse && !x.isUnfinishedThing &&
 							(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn));
 			defLists[1] = DefDatabase<TerrainDef>.AllDefsListForReading;
@@ -43,6 +43,7 @@ namespace CherryPicker
 			defLists[7] = DefDatabase<QuestScriptDef>.AllDefsListForReading.Where(x => !DefDatabase<IncidentDef>.AllDefsListForReading.Any(y => y.questScriptDef == x));
 			defLists[8] = DefDatabase<IncidentDef>.AllDefsListForReading;
 			defLists[9] = DefDatabase<HediffDef>.AllDefsListForReading;
+			defLists[10] = DefDatabase<ThoughtDef>.AllDefsListForReading;
 
 			//Temp working collection to merge everything together
 			var tmp = new List<System.Object>();
@@ -109,6 +110,8 @@ namespace CherryPicker
 		public static Def GetDef(string defName, Type type)
 		{
 			if (defName.NullOrEmpty()) return null;
+
+			//ToDo: I'm sure there's a way to convert this to a one-liner using reflection
 			
 			if ((type == null || type == typeof(ThingDef)) && DefDatabase<ThingDef>.defsByName.TryGetValue(defName, out ThingDef thingDef)) return thingDef;
 			
@@ -129,6 +132,8 @@ namespace CherryPicker
 			if ((type == null || type == typeof(IncidentDef)) && DefDatabase<IncidentDef>.defsByName.TryGetValue(defName, out IncidentDef incidentDef)) return incidentDef;
 
 			if ((type == null || type == typeof(HediffDef)) && DefDatabase<HediffDef>.defsByName.TryGetValue(defName, out HediffDef hediffDef)) return hediffDef;
+
+			if ((type == null || type == typeof(HediffDef)) && DefDatabase<ThoughtDef>.defsByName.TryGetValue(defName, out ThoughtDef thoughtDef)) return thoughtDef;
 
 			foreach (Def hardRemovedDef in hardRemovedDefs)
 			{
@@ -265,229 +270,282 @@ namespace CherryPicker
 		static bool PsuedoRemoveDef(Def def)
 		{
 			bool reloadRequired = false;
+
 			try
 			{
-				if (def is ThingDef)
+				switch(def.GetType().Name)
 				{
-					ThingDef thingDef = def as ThingDef;
-					thingDef.BaseMarketValue = 0f; //Market value considered for some spawning
-					thingDef.tradeability = Tradeability.None; //Won't be sold or come from drop pods
-					thingDef.thingCategories?.ForEach(x => x.ThisAndChildCategoryDefs?.ToList().ForEach(y => y.childThingDefs?.Remove(thingDef)));
-					thingDef.thingCategories?.Clear(); //Filters
-					thingDef.thingSetMakerTags?.Clear(); //Quest rewards
-
-					//If mineable...
-					thingDef.deepCommonality = 0;
-					thingDef.deepCountPerCell = 0;
-					thingDef.deepCountPerPortion = 0;
-					thingDef.deepLumpSizeRange = IntRange.zero;
-
-					//0'ing out the nutrition removes food from filters
-					if (thingDef.ingestible != null) thingDef.SetStatBaseValue(StatDefOf.Nutrition,0);
-
-					//Scenario starting items
-					DefDatabase<ScenarioDef>.AllDefsListForReading.ForEach(x => x.scenario.parts?.RemoveAll
-						(y => y.GetType() == typeof(ScenPart_StartingThing_Defined) && y.ChangeType<ScenPart_StartingThing_Defined>().thingDef == thingDef));
-
-					//Remove from recipe ingredients
-					DefDatabase<RecipeDef>.AllDefsListForReading.ForEach(x => x.ingredients?.ForEach(y =>
-						{
-							y.filter?.allowedDefs?.Remove(thingDef);
-							y.filter?.thingDefs?.RemoveAll(z => z == thingDef);
-						}));
-
-					//Butchery and Costlists
-					DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x =>
-						{
-							x.costList?.RemoveAll(y => y.thingDef == thingDef);
-							x.costListForDifficulty?.costList?.RemoveAll(y => y.thingDef == thingDef);
-							x.butcherProducts?.RemoveAll(z => z.thingDef == thingDef);
-						});
-					
-					//Remove styles (Ideology)
-					if (ModLister.IdeologyInstalled)
+					case nameof(Verse.ThingDef):
 					{
-						var styleCategoryDefs = DefDatabase<StyleCategoryDef>.AllDefsListForReading.Select(x => x.thingDefStyles);
-						//List of lists
-						foreach (List<ThingDefStyle> styleCategoryDef in styleCategoryDefs)
-						{
-							var styleDefWorkingList = styleCategoryDef.ToList();
-							//Go through this list
-							foreach (ThingDefStyle thingDefStyles in styleCategoryDef)
+						ThingDef thingDef = def as ThingDef;
+						thingDef.BaseMarketValue = 0f; //Market value considered for some spawning
+						thingDef.tradeability = Tradeability.None; //Won't be sold or come from drop pods
+						thingDef.thingCategories?.Clear(); //Filters
+						thingDef.thingSetMakerTags?.Clear(); //Quest rewards
+
+						//Update categories
+						thingDef.thingCategories?.ForEach(x => x.ThisAndChildCategoryDefs?.ToList().ForEach
+						(y => 
 							{
-								if (thingDefStyles.thingDef == thingDef)
-								{
-									var styleDef = thingDefStyles.styleDef;
-									DefDatabase<ThingStyleDef>.AllDefsListForReading.Remove(styleDef);
-									styleDefWorkingList.Remove(thingDefStyles);
-								}
+								y.allChildThingDefsCached?.Remove(thingDef);
+								y.sortedChildThingDefsCached?.Remove(thingDef);
+								y.childThingDefs?.Remove(thingDef);
 							}
-						}
-					}
-					
-					//Buildables
-					if (thingDef.category == ThingCategory.Building)
-					{
-						//Remove gizmo
-						var originalDesignationCategory = thingDef.designationCategory;
-						thingDef.designationCategory = null; //Hide from architect menus
-						originalDesignationCategory?.ResolveReferences();
+						));
 
-						thingDef.minifiedDef = null; //Removes from storage filters
-						thingDef.researchPrerequisites = null; //Removes from research UI
+						//If mineable...
+						thingDef.deepCommonality = 0;
+						thingDef.deepCountPerCell = 0;
+						thingDef.deepCountPerPortion = 0;
+						thingDef.deepLumpSizeRange = IntRange.zero;
 
-						//If mineable
-						if (thingDef.building != null)
-						{
-							thingDef.building.mineableScatterCommonality = 0;
-							thingDef.building.mineableScatterLumpSizeRange = IntRange.zero;
-						}
-
-						//Check if used for runes/junk on map gen
-						DefDatabase<GenStepDef>.AllDefsListForReading.ForEach
-						(x =>
-							{
-								if (x.genStep.GetType() == typeof(GenStep_ScatterGroup))
-								{
-									x.genStep.ChangeType<GenStep_ScatterGroup>().groups.ForEach(y => y.things.RemoveAll(z => z.thing == thingDef));
-								}
-								else if (x.genStep.GetType() == typeof(GenStep_ScatterThings) && x.genStep.ChangeType<GenStep_ScatterThings>().thingDef == thingDef)
-								{
-									x.genStep.ChangeType<GenStep_ScatterThings>().clusterSize = 0;
-								}
-							}
-						);
-					}
-					//Items
-					else if (thingDef.category == ThingCategory.Item)
-					{
-						//Makes this stuff material not show up in generated items
-						if (thingDef.stuffProps != null) thingDef.stuffProps.commonality = 0;
-
-						thingDef.recipeMaker?.recipeUsers.Clear();
-						//Is this item equipment?
-						if (thingDef.thingClass == typeof(Apparel) || thingDef.equipmentType == EquipmentType.Primary)
-						{
-							//Apparel?
-							if (thingDef.apparel != null)
-							{
-								reloadRequired = true;
-
-								thingDef.apparel.tags?.Clear();
-								thingDef.apparel.defaultOutfitTags?.Clear();
-								thingDef.apparel.canBeDesiredForIdeo = false;
-								thingDef.apparel.ideoDesireAllowedFactionCategoryTags?.Clear();
-								thingDef.apparel.ideoDesireDisallowedFactionCategoryTags?.Clear();
-							}
-							thingDef.weaponTags?.Clear();
-							DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => x.apparelRequired?.Remove(thingDef));
-							thingDef.techHediffsTags?.Clear();
-							DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => x.techHediffsRequired?.Remove(thingDef));
-							thingDef.comps?.Clear(); //Some scripts filter-select defs by their components. This should help exclude them
-						}
-					}
-					//Plants
-					else if (thingDef.category == ThingCategory.Plant)
-					{
-						foreach (var biomeDef in DefDatabase<BiomeDef>.AllDefsListForReading)
-						{
-							biomeDef.wildPlants?.RemoveAll(x => x.plant == thingDef);
-							biomeDef.cachedWildPlants?.RemoveAll(x => x == thingDef);
-							biomeDef.cachedPlantCommonalities?.RemoveAll(x => x.Key == thingDef);
-						}
-					}
-					//Pawns and animals
-					else if (thingDef.category == ThingCategory.Pawn)
-					{
-						//Omits from farm animal related events
-						thingDef.tradeTags?.Clear();
-						//Omits from migration event
-						thingDef.race.herdMigrationAllowed = false;
-						//Omits from manhunter event
-						DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => { if (x.defName == def.defName) x.canArriveManhunter = false ;} );
-
-						/*
-						if (thingDef.race.animalType == AnimalType.Dryad)
-						{
-							
-						}
-						*/
+						//0'ing out the nutrition removes food from filters
+						if (thingDef.ingestible != null) thingDef.SetStatBaseValue(StatDefOf.Nutrition,0);
 						
-						var biomeDefs = DefDatabase<BiomeDef>.AllDefsListForReading;
-						foreach (var biomeDef in biomeDefs)
+						//Remove styles (Ideology)
+						if (ModLister.IdeologyInstalled)
 						{
-							//Prevent biome spawning
-							biomeDef.wildAnimals?.ForEach(x => {if (x.animal?.race == thingDef) x.commonality = 0 ;} );
+							var styleCategoryDefs2 = DefDatabase<StyleCategoryDef>.AllDefsListForReading.Select(x => x.thingDefStyles);
+							//List of lists
+							foreach (List<ThingDefStyle> styleCategoryDef in styleCategoryDefs2)
+							{
+								var styleDefWorkingList = styleCategoryDef.ToList();
+								//Go through this list
+								foreach (ThingDefStyle thingDefStyles in styleCategoryDef)
+								{
+									if (thingDefStyles.thingDef == thingDef)
+									{
+										var styleDef = thingDefStyles.styleDef;
+										DefDatabase<ThingStyleDef>.AllDefsListForReading.Remove(styleDef);
+										styleDefWorkingList.Remove(thingDefStyles);
+									}
+								}
+							}
 						}
-					}
-				}
-				else if (def is TerrainDef)
-				{
-					var originalDesignationCategory = ((TerrainDef)def).designationCategory;
-					((TerrainDef)def).designationCategory = null; //Hide from architect menus
-					originalDesignationCategory?.ResolveReferences();
+						
+						//Buildables
+						if (thingDef.category == ThingCategory.Building)
+						{
+							//Remove gizmo
+							var originalDesignationCategory2 = thingDef.designationCategory;
+							thingDef.designationCategory = null; //Hide from architect menus
+							originalDesignationCategory2?.ResolveReferences();
 
-				}
-				else if (def is RecipeDef)
-				{
-					RecipeDef recipeDef = def as RecipeDef;
+							thingDef.minifiedDef = null; //Removes from storage filters
+							thingDef.researchPrerequisites = null; //Removes from research UI
+
+							//If mineable
+							if (thingDef.building != null)
+							{
+								thingDef.building.mineableScatterCommonality = 0;
+								thingDef.building.mineableScatterLumpSizeRange = IntRange.zero;
+							}
+
+							//Check if used for runes/junk on map gen
+							DefDatabase<GenStepDef>.AllDefsListForReading.ForEach
+							(x =>
+								{
+									if (x.genStep.GetType() == typeof(GenStep_ScatterGroup))
+									{
+										x.genStep.ChangeType<GenStep_ScatterGroup>().groups.ForEach(y => y.things.RemoveAll(z => z.thing == thingDef));
+									}
+									else if (x.genStep.GetType() == typeof(GenStep_ScatterThings) && x.genStep.ChangeType<GenStep_ScatterThings>().thingDef == thingDef)
+									{
+										x.genStep.ChangeType<GenStep_ScatterThings>().clusterSize = 0;
+									}
+								}
+							);
+						}
+						//Items
+						else if (thingDef.category == ThingCategory.Item)
+						{
+							//Scenario starting items
+							DefDatabase<ScenarioDef>.AllDefsListForReading.ForEach
+							(x => 
+								x.scenario.parts?.RemoveAll(y => y.GetType() == typeof(ScenPart_StartingThing_Defined) && y.ChangeType<ScenPart_StartingThing_Defined>().thingDef == thingDef)
+							);
+
+							//Remove from recipe ingredients
+							DefDatabase<RecipeDef>.AllDefsListForReading.ForEach
+							(x =>
+								{
+									x.ingredients?.ForEach
+									(y =>
+										{
+										y.filter?.thingDefs?.Remove(thingDef);
+										y.filter?.allowedDefs?.Remove(thingDef);
+										}
+									);
+									x.fixedIngredientFilter?.thingDefs?.Remove(thingDef);
+									x.fixedIngredientFilter?.allowedDefs?.Remove(thingDef);
+									x.defaultIngredientFilter?.thingDefs?.Remove(thingDef);
+									x.defaultIngredientFilter?.allowedDefs?.Remove(thingDef);
+								}
+							);
+
+							//Butchery and Costlists
+							DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x =>
+							{
+								x.costList?.RemoveAll(y => y.thingDef == thingDef);
+								x.costListForDifficulty?.costList?.RemoveAll(y => y.thingDef == thingDef);
+								x.butcherProducts?.RemoveAll(z => z.thingDef == thingDef);
+							});
+
+							//Makes this stuff material not show up in generated items
+							if (thingDef.stuffProps != null) thingDef.stuffProps.commonality = 0;
+
+							thingDef.recipeMaker?.recipeUsers.Clear();
+							//Is this item equipment?
+							if (thingDef.thingClass == typeof(Apparel) || thingDef.equipmentType == EquipmentType.Primary)
+							{
+								//Apparel?
+								if (thingDef.apparel != null)
+								{
+									reloadRequired = true;
+
+									thingDef.apparel.tags?.Clear();
+									thingDef.apparel.defaultOutfitTags?.Clear();
+									thingDef.apparel.canBeDesiredForIdeo = false;
+									thingDef.apparel.ideoDesireAllowedFactionCategoryTags?.Clear();
+									thingDef.apparel.ideoDesireDisallowedFactionCategoryTags?.Clear();
+								}
+								thingDef.weaponTags?.Clear();
+								DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => x.apparelRequired?.Remove(thingDef));
+								thingDef.techHediffsTags?.Clear();
+								DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => x.techHediffsRequired?.Remove(thingDef));
+								thingDef.comps?.Clear(); //Some scripts filter-select defs by their components. This should help exclude them
+							}
+						}
+						//Plants
+						else if (thingDef.category == ThingCategory.Plant)
+						{
+							foreach (var biomeDef in DefDatabase<BiomeDef>.AllDefsListForReading)
+							{
+								biomeDef.wildPlants?.RemoveAll(x => x.plant == thingDef);
+								biomeDef.cachedWildPlants?.RemoveAll(x => x == thingDef);
+								biomeDef.cachedPlantCommonalities?.RemoveAll(x => x.Key == thingDef);
+							}
+						}
+						//Pawns and animals
+						else if (thingDef.category == ThingCategory.Pawn)
+						{
+							//Omits from farm animal related events
+							thingDef.tradeTags?.Clear();
+							//Omits from migration event
+							thingDef.race.herdMigrationAllowed = false;
+							//Omits from manhunter event
+							DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => { if (x.defName == def.defName) x.canArriveManhunter = false ;} );
+
+							/*
+							if (thingDef.race.animalType == AnimalType.Dryad)
+							{
+								
+							}
+							*/
+							
+							var biomeDefs = DefDatabase<BiomeDef>.AllDefsListForReading;
+							foreach (var biomeDef in biomeDefs)
+							{
+								//Prevent biome spawning
+								biomeDef.wildAnimals?.ForEach(x => {if (x.animal?.race == thingDef) x.commonality = 0 ;} );
+							}
+						}
+						break;
+					}
 				
-					recipeDef.recipeUsers?.ForEach(x => {x.recipes?.Remove(recipeDef); x.allRecipesCached?.Remove(recipeDef); });
-					DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x => {x.allRecipesCached?.Remove(recipeDef); x.recipes?.Remove(recipeDef);} );
-					recipeDef.requiredGiverWorkType = null;
-				}
-				else if (def is TraitDef)
-				{
-					hardRemovedDefs.Add(def);
-					DefDatabase<TraitDef>.Remove(def as TraitDef);
-				}
-				else if (def is ResearchProjectDef)
-				{
-					hardRemovedDefs.Add(def);
-					DefDatabase<ResearchProjectDef>.Remove(def as ResearchProjectDef);
-				}
-				else if (def is DesignationCategoryDef)
-				{
-					hardRemovedDefs.Add(def);
-					DefDatabase<DesignationCategoryDef>.Remove(def as DesignationCategoryDef);
-					DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x => {if (x.designationCategory == def) x.designationCategory = null; } );
-
-					if (Current.ProgramState == ProgramState.Playing) reloadRequired = true;
-				}
-				else if (def is ThingStyleDef)
-				{
-					ThingStyleDef thingStyleDef = def as ThingStyleDef;
-					var styleCategoryDefs = DefDatabase<StyleCategoryDef>.AllDefsListForReading.Where(x => x.thingDefStyles.Any(y => y.styleDef == thingStyleDef));
-					foreach (var styleCategoryDef in styleCategoryDefs)
+					case nameof(TerrainDef):
 					{
-						//Find in list
-						ThingDefStyle thingDefStyle = styleCategoryDef.thingDefStyles.FirstOrDefault(x => x.styleDef == thingStyleDef);
-						if (thingDefStyle == null) continue;
-						//Remove from cache
-						styleCategoryDef.addDesignators?.Remove(thingDefStyle.thingDef as BuildableDef);
-						styleCategoryDef.cachedAllDesignatorBuildables?.Remove(thingDefStyle.thingDef as BuildableDef);
-						//Remove from list
-						styleCategoryDef.thingDefStyles.Remove(thingDefStyle);
+						var originalDesignationCategory = ((TerrainDef)def).designationCategory;
+						((TerrainDef)def).designationCategory = null; //Hide from architect menus
+						originalDesignationCategory?.ResolveReferences();
+						break;
 					}
-				}
-				else if (def is QuestScriptDef)
-				{
-					QuestScriptDef questScriptDef = def as QuestScriptDef;
+				
+					case nameof(RecipeDef):
+					{
+						RecipeDef recipeDef = def as RecipeDef;
 					
-					questScriptDef.rootSelectionWeight = 0; //Makes the IsRootRandomSelected getter return false, which excludes from ChooseNaturalRandomQuest
-					questScriptDef.decreeSelectionWeight = 0; //Excludes decrees
-				}
-				else if (def is IncidentDef)
-				{
-					IncidentDef incidentDef = def as IncidentDef;
+						recipeDef.recipeUsers?.ForEach(x => {x.recipes?.Remove(recipeDef); x.allRecipesCached?.Remove(recipeDef); });
+						DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x => {x.allRecipesCached?.Remove(recipeDef); x.recipes?.Remove(recipeDef);} );
+						recipeDef.requiredGiverWorkType = null;
+						break;
+					}
+
+					case nameof(TraitDef):
+					{
+						hardRemovedDefs.Add(def);
+						DefDatabase<TraitDef>.Remove(def as TraitDef);
+						break;
+					}
 					
-					incidentDef.baseChance = 0;
-					incidentDef.baseChanceWithRoyalty = 0;
-					incidentDef.earliestDay = int.MaxValue;
-					incidentDef.minThreatPoints = float.MaxValue;
-					incidentDef.minPopulation = int.MaxValue;
+					case nameof(ResearchProjectDef):
+					{
+						hardRemovedDefs.Add(def);
+						DefDatabase<ResearchProjectDef>.Remove(def as ResearchProjectDef);
+						break;
+					}
+					
+					case nameof(DesignationCategoryDef):
+					{
+						hardRemovedDefs.Add(def);
+						DefDatabase<DesignationCategoryDef>.Remove(def as DesignationCategoryDef);
+						DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x => {if (x.designationCategory == def) x.designationCategory = null; } );
+
+						if (Current.ProgramState == ProgramState.Playing) reloadRequired = true;
+						break;
+					}
+					
+					case nameof(ThingStyleDef):
+					{
+						ThingStyleDef thingStyleDef = def as ThingStyleDef;
+						var styleCategoryDefs = DefDatabase<StyleCategoryDef>.AllDefsListForReading.Where(x => x.thingDefStyles.Any(y => y.styleDef == thingStyleDef));
+						foreach (var styleCategoryDef in styleCategoryDefs)
+						{
+							//Find in list
+							ThingDefStyle thingDefStyle = styleCategoryDef.thingDefStyles.FirstOrDefault(x => x.styleDef == thingStyleDef);
+							if (thingDefStyle == null) continue;
+							//Remove from cache
+							styleCategoryDef.addDesignators?.Remove(thingDefStyle.thingDef as BuildableDef);
+							styleCategoryDef.cachedAllDesignatorBuildables?.Remove(thingDefStyle.thingDef as BuildableDef);
+							//Remove from list
+							styleCategoryDef.thingDefStyles.Remove(thingDefStyle);
+						}
+						break;
+					}
+					
+					case nameof(QuestScriptDef):
+					{
+						QuestScriptDef questScriptDef = def as QuestScriptDef;
+						
+						questScriptDef.rootSelectionWeight = 0; //Makes the IsRootRandomSelected getter return false, which excludes from ChooseNaturalRandomQuest
+						questScriptDef.decreeSelectionWeight = 0; //Excludes decrees
+						break;
+					}
+					
+					case nameof(IncidentDef):
+					{
+						IncidentDef incidentDef = def as IncidentDef;
+						
+						incidentDef.baseChance = 0;
+						incidentDef.baseChanceWithRoyalty = 0;
+						incidentDef.earliestDay = int.MaxValue;
+						incidentDef.minThreatPoints = float.MaxValue;
+						incidentDef.minPopulation = int.MaxValue;
+						break;
+					}
+					
+					case nameof(ThoughtDef):
+					{
+						ThoughtDef thoughtDef = def as ThoughtDef;
+
+						thoughtDef.durationDays = 0f;
+						thoughtDef.isMemoryCached = BoolUnknown.Unknown;
+						thoughtDef.minExpectation = new ExpectationDef() { order = int.MaxValue };
+						break;
+					}
+					
+					default: return false;
 				}
-				else return false;
 			}
 			//In the event there's a bug, this will at least allow the user to not be stuck in the options menu
 			catch (System.NullReferenceException)
