@@ -4,9 +4,9 @@ using UnityEngine;
 using System.Collections.Generic;
 using System;
 using System.Linq;
-using RimWorld;
 using static CherryPicker.ModSettings_CherryPicker;
 using static CherryPicker.CherryPickerUtility;
+using static CherryPicker.DefUtility;
  
 namespace CherryPicker
 {
@@ -46,11 +46,11 @@ namespace CherryPicker
 				options.Begin(listRect);
 				
 				//List out the removed defs first
-				for (int i = 0; i < workingList.Count; i++)
+				for (int i = 0; i < workingList.Count; ++i)
 				{
 					string key = workingList.ElementAt(i);
 					Def def = GetDef(key);
-					if (def != null && (!filtered || Search(def) != 0)) 
+					if (!filtered || Search(def) != 0) 
 					{
 						cellPosition += lineHeight;
 						++lineNumber;
@@ -105,16 +105,13 @@ namespace CherryPicker
 	{
 		public override void ExposeData()
 		{
-			if (Scribe.mode != LoadSaveMode.Saving || legacyKeys?.Count > 0 ) Scribe_Collections.Look(ref legacyKeys, "removedDefs", LookMode.Value, LookMode.Value);
 			Scribe_Collections.Look(ref removedDefs, "keys", LookMode.Value);
-			if (removedDefs == null) removedDefs = new HashSet<string>();
 
 			base.ExposeData();
 		}
 
-		public static List<string> legacyKeys = new List<string>();
-		public static HashSet<string> removedDefs = new HashSet<string>();
-		public static Vector2 scrollPos = Vector2.zero;
+		public static HashSet<string> removedDefs;
+		public static Vector2 scrollPos;
 		public static string filter;
 	}
 }

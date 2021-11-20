@@ -5,7 +5,7 @@ using RimWorld;
 using System.Collections.Generic;
 using System;
 using static CherryPicker.ModSettings_CherryPicker;
-using static CherryPicker.CherryPickerUtility;
+using static CherryPicker.DefUtility;
 
 namespace CherryPicker
 {

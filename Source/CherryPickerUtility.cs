@@ -2,10 +2,12 @@ using Verse;
 using System.Collections.Generic;
 using System;
 using System.Linq;
+using System.Reflection;
 using RimWorld;
 using UnityEngine;
 using Verse.Sound;
 using static CherryPicker.ModSettings_CherryPicker;
+using static CherryPicker.DefUtility;
  
 namespace CherryPicker
 {
@@ -19,7 +21,6 @@ namespace CherryPicker
 		public static bool filtered; //Tells the script the filter box is being used
 		public static int lineNumber = 0; //Handles row highlighting and also dynamic window size for the scroll bar
 		public static float cellPosition = 8f; //Tracks the vertical pacement in pixels
-		public static System.Reflection.Assembly rootAssembly;
 		public const float lineHeight = 22f; //Text.LineHeight + options.verticalSpacing;
 
 		public static void Setup()
@@ -30,36 +31,31 @@ namespace CherryPicker
   			timer.Start();
 
 			//Fetch all our def lists across multiple categories
-			System.Object[] defLists = new System.Object[11];
-			defLists[0] = DefDatabase<ThingDef>.AllDefsListForReading.Where(x => !x.IsBlueprint && !x.IsFrame && !x.IsCorpse && !x.isUnfinishedThing &&
-							(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn));
-			defLists[1] = DefDatabase<TerrainDef>.AllDefsListForReading;
-			defLists[2] = DefDatabase<RecipeDef>.AllDefsListForReading;
-			defLists[3] = DefDatabase<TraitDef>.AllDefsListForReading;
-			defLists[4] = DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(x => DefDatabase<ResearchProjectDef>.AllDefsListForReading.
-							Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true)));
-			defLists[5] = DefDatabase<DesignationCategoryDef>.AllDefsListForReading;
-			defLists[6] = DefDatabase<ThingStyleDef>.AllDefsListForReading;
-			defLists[7] = DefDatabase<QuestScriptDef>.AllDefsListForReading.Where(x => !DefDatabase<IncidentDef>.AllDefsListForReading.Any(y => y.questScriptDef == x));
-			defLists[8] = DefDatabase<IncidentDef>.AllDefsListForReading;
-			defLists[9] = DefDatabase<HediffDef>.AllDefsListForReading;
-			defLists[10] = DefDatabase<ThoughtDef>.AllDefsListForReading;
-
-			//Temp working collection to merge everything together
-			var tmp = new List<System.Object>();
-			foreach (IEnumerable<Def> list in defLists)
+			allDefs = new IEnumerable<Def>[]
 			{
-				tmp.AddRange(list);
-			}
+				DefDatabase<ThingDef>.AllDefsListForReading.Where
+					(x => !x.IsBlueprint && !x.IsFrame && !x.IsCorpse && !x.isUnfinishedThing &&
+					(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
+				DefDatabase<TerrainDef>.AllDefsListForReading,
+				DefDatabase<RecipeDef>.AllDefsListForReading,
+				DefDatabase<TraitDef>.AllDefsListForReading,
+				DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(x => DefDatabase<ResearchProjectDef>.AllDefsListForReading.
+								Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true))),
+				DefDatabase<DesignationCategoryDef>.AllDefsListForReading,
+				DefDatabase<ThingStyleDef>.AllDefsListForReading,
+				DefDatabase<QuestScriptDef>.AllDefsListForReading.Where(x => !DefDatabase<IncidentDef>.AllDefsListForReading.Any(y => y.questScriptDef == x)),
+				DefDatabase<IncidentDef>.AllDefsListForReading,
+				DefDatabase<HediffDef>.AllDefsListForReading,
+				DefDatabase<ThoughtDef>.AllDefsListForReading,
+				DefDatabase<TraderKindDef>.AllDefsListForReading,
+				DefDatabase<GatheringDef>.AllDefsListForReading,
+				DefDatabase<WorkTypeDef>.AllDefsListForReading
+			}.SelectMany(x => x).Distinct().ToArray();
 
-			//Final collection
-			allDefs = tmp.Cast<Def>().ToArray();
-
-			//Free memory since this is a static member
-			defLists = null; tmp = null;
-
+			//Check for new-users
+			if (removedDefs == null) removedDefs = new HashSet<string>();
+			
 			//Process lists
-			if (legacyKeys?.Count > 0) ConvertLegacy(); //Convert to new version
 			MakeLabelCache();
 			MakeWorkingList();
 			ProcessList();
@@ -69,78 +65,6 @@ namespace CherryPicker
 
 			//Give report
 			if (report.Count > 0) Log.Message("[Cherry Picker] The database was processed in " + timeTaken.ToString(@"ss\.fffff") + " seconds and the following defs were removed: " + string.Join(", ", report));
-		}
-
-		//Temporary code, will be deleted after a few weeks
-		public static void ConvertLegacy()
-		{
-			var legacyKeysWorkingList = legacyKeys.ToList();
-			foreach (string key in legacyKeysWorkingList)
-			{
-				string newKey = "";
-				newKey = GetKey(GetDef(key, null));
-				
-				if (!newKey.NullOrEmpty())
-				{
-					removedDefs.Add(newKey);
-					legacyKeys.Remove(key);
-				}
-			}
-			LoadedModManager.GetMod<Mod_CherryPicker>().modSettings.Write();
-		}
-
-		public static string GetKey(Def def)
-		{
-			return def == null ? "" : (def.GetType().Name + "/" + def.defName);
-		}
-
-		public static string GetDefName(string def)
-		{
-			return def.Split('/')[1];
-		}
-
-		public static Type GetDefType(string def)
-		{
-			return rootAssembly.GetType("Verse." + def.Split('/')[0]);
-		}
-		public static Def GetDef(string key)
-		{
-			return GetDef(GetDefName(key), GetDefType(key));
-		}
-		public static Def GetDef(string defName, Type type)
-		{
-			if (defName.NullOrEmpty()) return null;
-
-			//ToDo: I'm sure there's a way to convert this to a one-liner using reflection
-			
-			if ((type == null || type == typeof(ThingDef)) && DefDatabase<ThingDef>.defsByName.TryGetValue(defName, out ThingDef thingDef)) return thingDef;
-			
-			if ((type == null || type == typeof(TerrainDef)) && DefDatabase<TerrainDef>.defsByName.TryGetValue(defName, out TerrainDef terrainDef)) return terrainDef;
-			
-			if ((type == null || type == typeof(RecipeDef)) && DefDatabase<RecipeDef>.defsByName.TryGetValue(defName, out RecipeDef recipeDef)) return recipeDef;
-			
-			if ((type == null || type == typeof(TraitDef)) && DefDatabase<TraitDef>.defsByName.TryGetValue(defName, out TraitDef traitDef)) return traitDef;
-			
-			if ((type == null || type == typeof(ResearchProjectDef)) && DefDatabase<ResearchProjectDef>.defsByName.TryGetValue(defName, out ResearchProjectDef researchProjectDef)) return researchProjectDef;
-			
-			if ((type == null || type == typeof(DesignationCategoryDef)) && DefDatabase<DesignationCategoryDef>.defsByName.TryGetValue(defName, out DesignationCategoryDef designationCategoryDef)) return designationCategoryDef;
-			
-			if ((type == null || type == typeof(ThingStyleDef)) && DefDatabase<ThingStyleDef>.defsByName.TryGetValue(defName, out ThingStyleDef thingStyleDef)) return thingStyleDef;
-
-			if ((type == null || type == typeof(QuestScriptDef)) && DefDatabase<QuestScriptDef>.defsByName.TryGetValue(defName, out QuestScriptDef questScriptDef)) return questScriptDef;
-
-			if ((type == null || type == typeof(IncidentDef)) && DefDatabase<IncidentDef>.defsByName.TryGetValue(defName, out IncidentDef incidentDef)) return incidentDef;
-
-			if ((type == null || type == typeof(HediffDef)) && DefDatabase<HediffDef>.defsByName.TryGetValue(defName, out HediffDef hediffDef)) return hediffDef;
-
-			if ((type == null || type == typeof(HediffDef)) && DefDatabase<ThoughtDef>.defsByName.TryGetValue(defName, out ThoughtDef thoughtDef)) return thoughtDef;
-
-			foreach (Def hardRemovedDef in hardRemovedDefs)
-			{
-				if (hardRemovedDef.defName == defName && hardRemovedDef.GetType().Name == type?.Name) return hardRemovedDef;
-			}
-			
-			return null;
 		}
 
 		public static void MakeLabelCache()
@@ -156,16 +80,16 @@ namespace CherryPicker
 		public static void MakeWorkingList()
 		{
 			workingList.Clear();
-			foreach (var key in removedDefs)
+			foreach (string key in removedDefs)
 			{
-				var def = GetDef(key);
+				Def def = GetDef(key);
 				if (allDefs.Any(x => x == def)) workingList.Add(key);
 			}
 		}
 
 		public static int Search(Def def)
 		{
-			string input = (def.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower();
+			string input = (def?.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower();
 			return (int)Math.Ceiling((float)(input.Length - input.Replace(filter.ToLower(), String.Empty).Length) / (float)filter.Length);
 		}
 
@@ -413,7 +337,9 @@ namespace CherryPicker
 								DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => x.apparelRequired?.Remove(thingDef));
 								thingDef.techHediffsTags?.Clear();
 								DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => x.techHediffsRequired?.Remove(thingDef));
-								thingDef.comps?.Clear(); //Some scripts filter-select defs by their components. This should help exclude them
+
+								//Some scripts filter-select defs by their components. This should help exclude them, but some comps are special and white-listed
+								thingDef.comps.RemoveAll(x => x.GetType() != typeof(CompProperties_Drug));
 							}
 						}
 						//Plants
@@ -465,9 +391,25 @@ namespace CherryPicker
 					{
 						RecipeDef recipeDef = def as RecipeDef;
 					
-						recipeDef.recipeUsers?.ForEach(x => {x.recipes?.Remove(recipeDef); x.allRecipesCached?.Remove(recipeDef); });
-						DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x => {x.allRecipesCached?.Remove(recipeDef); x.recipes?.Remove(recipeDef);} );
+						recipeDef.recipeUsers?.ForEach
+						(x => 
+							{
+								x.recipes?.Remove(recipeDef);
+								x.allRecipesCached?.Remove(recipeDef);
+							}
+						);
+						DefDatabase<ThingDef>.AllDefsListForReading.ForEach
+						(x => 
+							{
+								x.allRecipesCached?.Remove(recipeDef);
+								x.recipes?.Remove(recipeDef);
+							}
+						);
 						recipeDef.requiredGiverWorkType = null;
+						recipeDef.researchPrerequisite = null;
+						recipeDef.researchPrerequisites?.Clear();
+						hardRemovedDefs.Add(recipeDef);
+						DefDatabase<RecipeDef>.Remove(recipeDef);
 						break;
 					}
 
@@ -541,6 +483,26 @@ namespace CherryPicker
 						thoughtDef.durationDays = 0f;
 						thoughtDef.isMemoryCached = BoolUnknown.Unknown;
 						thoughtDef.minExpectation = new ExpectationDef() { order = int.MaxValue };
+						break;
+					}
+
+					case nameof(TraderKindDef):
+					{
+						((TraderKindDef)def).commonality = 0f;
+						break;
+					}
+
+					case nameof(GatheringDef):
+					{
+						((GatheringDef)def).randomSelectionWeight = 0f;
+						break;
+					}
+
+					case nameof(WorkTypeDef):
+					{
+						((WorkTypeDef)def).visible = false;
+						DefDatabase<PawnColumnDef>.AllDefsListForReading.RemoveAll(x => x.workType == def);
+						DefDatabase<PawnTableDef>.AllDefsListForReading.ForEach(x => x.columns.RemoveAll(y => y.workType == def));
 						break;
 					}
 					
