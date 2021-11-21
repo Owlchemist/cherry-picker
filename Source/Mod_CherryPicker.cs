@@ -54,7 +54,7 @@ namespace CherryPicker
 					{
 						cellPosition += lineHeight;
 						++lineNumber;
-						if (cellPosition > scrollPos.y - inRect.height && cellPosition < scrollPos.y + inRect.height) DrawListItem(options, def);
+						if (cellPosition > scrollPos.y - inRect.height && cellPosition < scrollPos.y + inRect.height) DrawListItem(options, def, allDefs.FirstIndexOf(x => x == def));
 					}
 				}
 
@@ -64,8 +64,7 @@ namespace CherryPicker
 				cellPosition += lineHeight;
 
 				//List out all the unremoved defs from the compiled database
-				int length = allDefs.Length;
-				for (int i = 0; i < length; ++i)
+				for (int i = 0; i < allDefs.Length; ++i)
 				{
 					Def def = allDefs[i];
 					if (!workingList.Contains(GetKey(def)))
@@ -74,7 +73,7 @@ namespace CherryPicker
 						{
 							cellPosition += lineHeight;
 							++lineNumber;
-							if (cellPosition > scrollPos.y - inRect.height && cellPosition < scrollPos.y + inRect.height) DrawListItem(options, def);
+							if (cellPosition > scrollPos.y - inRect.height && cellPosition < scrollPos.y + inRect.height) DrawListItem(options, def, i);
 						}
 					}
 				}

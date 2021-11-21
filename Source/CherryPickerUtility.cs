@@ -14,9 +14,9 @@ namespace CherryPicker
     internal static class CherryPickerUtility
 	{
 		public static Def[] allDefs; //All defs this mod supports editting
+		public static string[] labelCache; //Sync'd index with allDefs
 		public static HashSet<string> workingList = new HashSet<string>(); //A copy of the user's removed defs but only the defs loaded in this modlist
 		public static List<string> report = new List<string>(); //Gives a console print of changes made
-		public static Dictionary<string, string> labelCache = new Dictionary<string, string>();
 		public static HashSet<Def> hardRemovedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
 		public static bool filtered; //Tells the script the filter box is being used
 		public static int lineNumber = 0; //Handles row highlighting and also dynamic window size for the scroll bar
@@ -69,9 +69,11 @@ namespace CherryPicker
 
 		public static void MakeLabelCache()
 		{
-			foreach (Def def in allDefs)
+			labelCache = new string[allDefs.Length];
+			for (int i = 0; i < allDefs.Length; ++i)
 			{
-				labelCache.Add(GetKey(def), def.GetType().Name + " :: " + def.modContentPack?.Name + " :: " + def.defName);
+				Def def = allDefs[i];
+				labelCache[i] = def.GetType().Name + " :: " + def.modContentPack?.Name + " :: " + def.defName;
 			}
 		}
 
@@ -93,7 +95,7 @@ namespace CherryPicker
 			return (int)Math.Ceiling((float)(input.Length - input.Replace(filter.ToLower(), String.Empty).Length) / (float)filter.Length);
 		}
 
-		public static void DrawListItem(Listing_Standard options, Def def)
+		public static void DrawListItem(Listing_Standard options, Def def, int index)
 		{
 			//Prepare key
 			string key = GetKey(def);
@@ -107,7 +109,7 @@ namespace CherryPicker
 			//Actually draw the line item
 			if (options.BoundingRectCached == null || rect.Overlaps(options.BoundingRectCached.Value))
 			{
-				CheckboxLabeled(rect, labelCache[key], def.label, ref checkOn, def);
+				CheckboxLabeled(rect, labelCache[index], def.label, ref checkOn, def);
 			}
 
 			//Handle row coloring and spacing
@@ -116,7 +118,7 @@ namespace CherryPicker
 			Widgets.DrawHighlightIfMouseover(rect);
 
 			//Tooltip
-			TooltipHandler.TipRegion(rect, labelCache[key] + "\n\n" + def.description);
+			TooltipHandler.TipRegion(rect, labelCache[index] + "\n\n" + def.description);
 			
 			//Add to working list if missing
 			if (!checkOn && !workingList.Contains(key)) workingList.Add(key);
@@ -124,7 +126,7 @@ namespace CherryPicker
 			else if (checkOn && workingList.Contains(key)) workingList.Remove(key);
 		}
 
-		public static void CheckboxLabeled(Rect rect, string data, string label, ref bool checkOn, Def def)
+		static void CheckboxLabeled(Rect rect, string data, string label, ref bool checkOn, Def def)
 		{
 			Rect leftHalf = rect.LeftHalf();
 			
