@@ -14,7 +14,6 @@ namespace CherryPicker
     internal static class CherryPickerUtility
 	{
 		public static Def[] allDefs; //All defs this mod supports editting
-		public static string[] labelCache; //Sync'd index with allDefs
 		public static HashSet<string> workingList = new HashSet<string>(); //A copy of the user's removed defs but only the defs loaded in this modlist
 		public static List<string> report = new List<string>(); //Gives a console print of changes made
 		public static HashSet<Def> hardRemovedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
@@ -49,14 +48,16 @@ namespace CherryPicker
 				DefDatabase<ThoughtDef>.AllDefsListForReading,
 				DefDatabase<TraderKindDef>.AllDefsListForReading,
 				DefDatabase<GatheringDef>.AllDefsListForReading,
-				DefDatabase<WorkTypeDef>.AllDefsListForReading
+				DefDatabase<WorkTypeDef>.AllDefsListForReading,
+				DefDatabase<MemeDef>.AllDefsListForReading,
+				DefDatabase<PreceptDef>.AllDefsListForReading,
+				DefDatabase<RitualPatternDef>.AllDefsListForReading
 			}.SelectMany(x => x).Distinct().ToArray();
 
 			//Check for new-users
 			if (removedDefs == null) removedDefs = new HashSet<string>();
 			
 			//Process lists
-			MakeLabelCache();
 			MakeWorkingList();
 			ProcessList();
 
@@ -65,16 +66,6 @@ namespace CherryPicker
 
 			//Give report
 			if (report.Count > 0) Log.Message("[Cherry Picker] The database was processed in " + timeTaken.ToString(@"ss\.fffff") + " seconds and the following defs were removed: " + string.Join(", ", report));
-		}
-
-		public static void MakeLabelCache()
-		{
-			labelCache = new string[allDefs.Length];
-			for (int i = 0; i < allDefs.Length; ++i)
-			{
-				Def def = allDefs[i];
-				labelCache[i] = def.GetType().Name + " :: " + def.modContentPack?.Name + " :: " + def.defName;
-			}
 		}
 
 		//The worklist list differs from the removedDefs list in that it only contains defs for the current modlist.
@@ -91,7 +82,8 @@ namespace CherryPicker
 
 		public static int Search(Def def)
 		{
-			string input = (def?.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower();
+			if (def == null) return 0;
+			string input = (def.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower();
 			return (int)Math.Ceiling((float)(input.Length - input.Replace(filter.ToLower(), String.Empty).Length) / (float)filter.Length);
 		}
 
@@ -106,10 +98,13 @@ namespace CherryPicker
 			Rect rect = options.GetRect(lineHeight);
 			rect.y = cellPosition;
 
+			//Prepare label
+			string label = def.GetType().Name + " :: " + def.modContentPack?.Name + " :: " + def.defName;
+
 			//Actually draw the line item
 			if (options.BoundingRectCached == null || rect.Overlaps(options.BoundingRectCached.Value))
 			{
-				CheckboxLabeled(rect, labelCache[index], def.label, ref checkOn, def);
+				CheckboxLabeled(rect, label, def.label, ref checkOn, def);
 			}
 
 			//Handle row coloring and spacing
@@ -118,7 +113,7 @@ namespace CherryPicker
 			Widgets.DrawHighlightIfMouseover(rect);
 
 			//Tooltip
-			TooltipHandler.TipRegion(rect, labelCache[index] + "\n\n" + def.description);
+			TooltipHandler.TipRegion(rect, label + "\n\n" + def.description);
 			
 			//Add to working list if missing
 			if (!checkOn && !workingList.Contains(key)) workingList.Add(key);
@@ -265,6 +260,7 @@ namespace CherryPicker
 							{
 								thingDef.building.mineableScatterCommonality = 0;
 								thingDef.building.mineableScatterLumpSizeRange = IntRange.zero;
+								thingDef.building.isNaturalRock = false;
 							}
 
 							//Check if used for runes/junk on map gen
@@ -281,6 +277,17 @@ namespace CherryPicker
 									}
 								}
 							);
+
+							//Is this building used for a ideology precept?
+							if (ModLister.IdeologyInstalled)
+							{
+								DefDatabase<PreceptDef>.AllDefsListForReading.ForEach
+								(x =>
+									{
+										x.buildingDefChances?.RemoveAll(x => x.def == thingDef);
+									}
+								);
+							}
 						}
 						//Items
 						else if (thingDef.category == ThingCategory.Item)
@@ -433,7 +440,12 @@ namespace CherryPicker
 					{
 						hardRemovedDefs.Add(def);
 						DefDatabase<DesignationCategoryDef>.Remove(def as DesignationCategoryDef);
-						DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x => {if (x.designationCategory == def) x.designationCategory = null; } );
+						DefDatabase<ThingDef>.AllDefsListForReading.ForEach
+						(x =>
+							{
+								if (x.designationCategory == def as DesignationCategoryDef) x.designationCategory = null;
+							}
+						);
 
 						if (Current.ProgramState == ProgramState.Playing) reloadRequired = true;
 						break;
@@ -502,9 +514,35 @@ namespace CherryPicker
 
 					case nameof(WorkTypeDef):
 					{
-						((WorkTypeDef)def).visible = false;
-						DefDatabase<PawnColumnDef>.AllDefsListForReading.RemoveAll(x => x.workType == def);
-						DefDatabase<PawnTableDef>.AllDefsListForReading.ForEach(x => x.columns.RemoveAll(y => y.workType == def));
+						WorkTypeDef workTypeDef = def as WorkTypeDef;
+						workTypeDef.visible = false;
+						DefDatabase<PawnColumnDef>.AllDefsListForReading.RemoveAll(x => x.workType == workTypeDef);
+						DefDatabase<PawnTableDef>.AllDefsListForReading.ForEach(x => x.columns.RemoveAll(y => y.workType == workTypeDef));
+						break;
+					}
+
+					case nameof(MemeDef):
+					{
+						hardRemovedDefs.Add(def);
+						DefDatabase<MemeDef>.Remove(def as MemeDef);
+						break;
+					}
+
+					case nameof(PreceptDef):
+					{
+						hardRemovedDefs.Add(def);
+						PreceptDef preceptDef = def as PreceptDef;
+						preceptDef.allowedForNPCFactions = false;
+						preceptDef.visible = false;
+						preceptDef.selectionWeight = 0;
+						DefDatabase<PreceptDef>.Remove(preceptDef);
+						break;
+					}
+
+					case nameof(RitualPatternDef):
+					{
+						hardRemovedDefs.Add(def);
+						DefDatabase<RitualPatternDef>.Remove(def as RitualPatternDef);
 						break;
 					}
 					
