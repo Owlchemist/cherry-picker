@@ -14,6 +14,7 @@ namespace CherryPicker
     internal static class CherryPickerUtility
 	{
 		public static Def[] allDefs; //All defs this mod supports editting
+		public static Dictionary<Def, string> searchStringCache; //Sync'd index with allDefs
 		public static HashSet<string> workingList = new HashSet<string>(); //A copy of the user's removed defs but only the defs loaded in this modlist
 		public static List<string> report = new List<string>(); //Gives a console print of changes made
 		public static HashSet<Def> hardRemovedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
@@ -51,13 +52,17 @@ namespace CherryPicker
 				DefDatabase<WorkTypeDef>.AllDefsListForReading,
 				DefDatabase<MemeDef>.AllDefsListForReading,
 				DefDatabase<PreceptDef>.AllDefsListForReading,
-				DefDatabase<RitualPatternDef>.AllDefsListForReading
+				DefDatabase<RitualPatternDef>.AllDefsListForReading,
+				DefDatabase<HairDef>.AllDefsListForReading,
+				DefDatabase<BeardDef>.AllDefsListForReading,
+				DefDatabase<RaidStrategyDef>.AllDefsListForReading
 			}.SelectMany(x => x).Distinct().ToArray();
 
 			//Check for new-users
 			if (removedDefs == null) removedDefs = new HashSet<string>();
 			
 			//Process lists
+			MakeLabelCache();
 			MakeWorkingList();
 			ProcessList();
 
@@ -66,6 +71,15 @@ namespace CherryPicker
 
 			//Give report
 			if (report.Count > 0) Log.Message("[Cherry Picker] The database was processed in " + timeTaken.ToString(@"ss\.fffff") + " seconds and the following defs were removed: " + string.Join(", ", report));
+		}
+
+		public static void MakeLabelCache()
+		{
+			searchStringCache = new Dictionary<Def, string>();
+			foreach (var def in allDefs)
+			{
+				searchStringCache.Add(def, (def?.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower());
+			}
 		}
 
 		//The worklist list differs from the removedDefs list in that it only contains defs for the current modlist.
@@ -79,84 +93,6 @@ namespace CherryPicker
 				if (allDefs.Any(x => x == def)) workingList.Add(key);
 			}
 		}
-
-		public static int Search(Def def)
-		{
-			if (def == null) return 0;
-			string input = (def.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower();
-			return (int)Math.Ceiling((float)(input.Length - input.Replace(filter.ToLower(), String.Empty).Length) / (float)filter.Length);
-		}
-
-		public static void DrawListItem(Listing_Standard options, Def def, int index)
-		{
-			//Prepare key
-			string key = GetKey(def);
-
-			//Determine checkbox status...
-			bool checkOn = !workingList?.Contains(key) ?? false;
-			//Draw...
-			Rect rect = options.GetRect(lineHeight);
-			rect.y = cellPosition;
-
-			//Prepare label
-			string label = def.GetType().Name + " :: " + def.modContentPack?.Name + " :: " + def.defName;
-
-			//Actually draw the line item
-			if (options.BoundingRectCached == null || rect.Overlaps(options.BoundingRectCached.Value))
-			{
-				CheckboxLabeled(rect, label, def.label, ref checkOn, def);
-			}
-
-			//Handle row coloring and spacing
-			options.Gap(options.verticalSpacing);
-			if (lineNumber % 2 != 0) Widgets.DrawLightHighlight(rect);
-			Widgets.DrawHighlightIfMouseover(rect);
-
-			//Tooltip
-			TooltipHandler.TipRegion(rect, label + "\n\n" + def.description);
-			
-			//Add to working list if missing
-			if (!checkOn && !workingList.Contains(key)) workingList.Add(key);
-			//Remove from working list
-			else if (checkOn && workingList.Contains(key)) workingList.Remove(key);
-		}
-
-		static void CheckboxLabeled(Rect rect, string data, string label, ref bool checkOn, Def def)
-		{
-			Rect leftHalf = rect.LeftHalf();
-			
-			//Is there an icon?
-			Rect iconRect = new Rect(leftHalf.x, leftHalf.y, 32f, leftHalf.height);
-			Texture2D icon = null;
-			if (def is BuildableDef) icon = ((BuildableDef)def).uiIcon;
-			else if (def is RecipeDef) icon = ((RecipeDef)def).ProducedThingDef?.uiIcon;
-			if (icon != null) GUI.DrawTexture(iconRect, icon, ScaleMode.ScaleToFit, true, 1f, Color.white, 0f, 0f);
-
-			//If there is a label, split the cell in half, otherwise use the full cell for data
-			if (!label.NullOrEmpty())
-			{
-				Rect dataRect = new Rect(iconRect.xMax, iconRect.y, leftHalf.width - 32f, leftHalf.height);
-
-				Widgets.Label(dataRect, data?.Truncate(dataRect.width - 12f, InspectPaneUtility.truncatedLabelsCached));
-				Rect rightHalf = rect.RightHalf();
-				Widgets.Label(rightHalf, label.Truncate(rightHalf.width - 12f, InspectPaneUtility.truncatedLabelsCached));
-			}
-			else
-			{
-				Rect dataRect = new Rect(iconRect.xMax, iconRect.y, rect.width - 32f, leftHalf.height);
-				Widgets.Label(dataRect, data?.Truncate(dataRect.width - 12f, InspectPaneUtility.truncatedLabelsCached));
-			}
-
-			//Checkbox
-			if (Widgets.ButtonInvisible(rect, true))
-			{
-				checkOn = !checkOn;
-				if (checkOn) SoundDefOf.Checkbox_TurnedOn.PlayOneShotOnCamera(null);
-				else SoundDefOf.Checkbox_TurnedOff.PlayOneShotOnCamera(null);
-			}
-			Widgets.CheckboxDraw(rect.xMax - 24f, rect.y, checkOn, false, 24f, null, null);
-		}
-
 		public static void ProcessList()
 		{
 			report.Clear();
@@ -182,6 +118,7 @@ namespace CherryPicker
 				}
 			}
 
+			allDefs = allDefs.OrderBy(x => !workingList.Contains(GetKey(x))).ToArray();
 			if (restartNeeded)
 			{
 				Find.WindowStack.Add(new Dialog_MessageBox("CherryPicker.RestartRequired".Translate(), null, null, null, null, "CherryPicker.RestartHeader".Translate(), true, null, null, WindowLayer.Dialog));
@@ -354,12 +291,14 @@ namespace CherryPicker
 						//Plants
 						else if (thingDef.category == ThingCategory.Plant)
 						{
-							foreach (var biomeDef in DefDatabase<BiomeDef>.AllDefsListForReading)
-							{
-								biomeDef.wildPlants?.RemoveAll(x => x.plant == thingDef);
-								biomeDef.cachedWildPlants?.RemoveAll(x => x == thingDef);
-								biomeDef.cachedPlantCommonalities?.RemoveAll(x => x.Key == thingDef);
-							}
+							DefDatabase<BiomeDef>.AllDefsListForReading.ForEach
+							(x =>
+								{
+									x.wildPlants?.RemoveAll(y => y.plant == thingDef);
+									x.cachedWildPlants?.RemoveAll(y => y == thingDef);
+									x.cachedPlantCommonalities?.RemoveAll(y => y.Key == thingDef);
+								}
+							);
 						}
 						//Pawns and animals
 						else if (thingDef.category == ThingCategory.Pawn)
@@ -369,7 +308,17 @@ namespace CherryPicker
 							//Omits from migration event
 							thingDef.race.herdMigrationAllowed = false;
 							//Omits from manhunter event
-							DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => { if (x.defName == def.defName) x.canArriveManhunter = false ;} );
+							DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach
+							(x =>
+								{
+									if (x.race.defName == def.defName)
+									{
+										x.canArriveManhunter = false;
+										x.combatPower = float.MaxValue; //Makes too expensive to ever buy with points
+										x.isGoodBreacher = false; //Special checks
+									}
+								}
+							);
 
 							/*
 							if (thingDef.race.animalType == AnimalType.Dryad)
@@ -378,12 +327,13 @@ namespace CherryPicker
 							}
 							*/
 							
-							var biomeDefs = DefDatabase<BiomeDef>.AllDefsListForReading;
-							foreach (var biomeDef in biomeDefs)
-							{
-								//Prevent biome spawning
-								biomeDef.wildAnimals?.ForEach(x => {if (x.animal?.race == thingDef) x.commonality = 0 ;} );
-							}
+							//Prevent biome spawning
+							DefDatabase<BiomeDef>.AllDefsListForReading.ForEach
+							(x =>
+								{
+									x.wildAnimals?.ForEach(x => {if (x.animal?.race == thingDef) x.commonality = 0 ;} );
+								}
+							);
 						}
 						break;
 					}
@@ -543,6 +493,28 @@ namespace CherryPicker
 					{
 						hardRemovedDefs.Add(def);
 						DefDatabase<RitualPatternDef>.Remove(def as RitualPatternDef);
+						break;
+					}
+
+					case nameof(HairDef):
+					{
+						hardRemovedDefs.Add(def);
+						DefDatabase<HairDef>.Remove(def as HairDef);
+						break;
+					}
+
+					case nameof(BeardDef):
+					{
+						hardRemovedDefs.Add(def);
+						DefDatabase<BeardDef>.Remove(def as BeardDef);
+						break;
+					}
+
+					case nameof(RaidStrategyDef):
+					{
+						RaidStrategyDef raidStrategyDef = def as RaidStrategyDef;
+						raidStrategyDef.pointsFactorCurve = new SimpleCurve() { { new CurvePoint(0, 0), true } };
+						raidStrategyDef.selectionWeightPerPointsCurve = new SimpleCurve() { { new CurvePoint(0, 0), true } };
 						break;
 					}
 					

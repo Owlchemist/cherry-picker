@@ -7,6 +7,7 @@ using System.Linq;
 using static CherryPicker.ModSettings_CherryPicker;
 using static CherryPicker.CherryPickerUtility;
 using static CherryPicker.DefUtility;
+using static CherryPicker.DrawUtility;
  
 namespace CherryPicker
 {
@@ -45,37 +46,16 @@ namespace CherryPicker
 			Widgets.BeginScrollView(scrollViewRect, ref scrollPos, listRect, true);
 				options.Begin(listRect);
 				
-				//List out the removed defs first
-				for (int i = 0; i < workingList.Count; ++i)
+				//List out all the unremoved defs from the compiled database
+				foreach (Def def in allDefs)
 				{
-					string key = workingList.ElementAt(i);
-					Def def = GetDef(key);
-					if (!filtered || Search(def) != 0) 
+					if (def != null && (!filtered || (searchStringCache.TryGetValue(def)?.Contains(filter) ?? false)))
 					{
 						cellPosition += lineHeight;
 						++lineNumber;
-						if (cellPosition > scrollPos.y - inRect.height && cellPosition < scrollPos.y + inRect.height) DrawListItem(options, def, allDefs.FirstIndexOf(x => x == def));
+						if (cellPosition > scrollPos.y - inRect.height && cellPosition < scrollPos.y + inRect.height) DrawListItem(options, def);
 					}
-				}
-
-				//Gap
-				options.curY = cellPosition + lineHeight;
-				options.GapLine();
-				cellPosition += lineHeight;
-
-				//List out all the unremoved defs from the compiled database
-				for (int i = 0; i < allDefs.Length; ++i)
-				{
-					Def def = allDefs[i];
-					if (!workingList.Contains(GetKey(def)))
-					{
-						if (def != null && (!filtered || Search(def) != 0)) 
-						{
-							cellPosition += lineHeight;
-							++lineNumber;
-							if (cellPosition > scrollPos.y - inRect.height && cellPosition < scrollPos.y + inRect.height) DrawListItem(options, def, i);
-						}
-					}
+					
 				}
 				lastNumOfLines = lineNumber;
 				lineNumber = 0;
