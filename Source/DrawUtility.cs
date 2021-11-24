@@ -12,7 +12,7 @@ namespace CherryPicker
 		public static void DrawListItem(Listing_Standard options, Def def)
 		{
 			//Prepare key
-			string key = GetKey(def);
+			string key = def.ToKey();
 
 			//Determine checkbox status...
 			bool checkOn = !workingList?.Contains(key) ?? false;

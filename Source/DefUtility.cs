@@ -8,7 +8,7 @@ namespace CherryPicker
 	{
 		public static System.Reflection.Assembly rootAssembly;
 
-		public static string GetKey(Def def)
+		public static string ToKey(this Def def)
 		{
 			return def == null ? "" : (def.GetType().Name + "/" + def.defName);
 		}
@@ -20,7 +20,7 @@ namespace CherryPicker
 		{
 			return rootAssembly.GetType("Verse." + def.Split('/')[0]) ?? rootAssembly.GetType("RimWorld." + def.Split('/')[0]);
 		}
-		public static Def GetDef(string key)
+		public static Def ToDef(this string key)
 		{
 			return GetDef(GetDefName(key), GetDefType(key));
 		}
@@ -31,7 +31,7 @@ namespace CherryPicker
 			Def def = (Def)GenGeneric.InvokeStaticMethodOnGenericType(typeof(DefDatabase<>), type, nameof(DefDatabase<Def>.GetNamed), defName, false);
 			if (def == null)
 			{
-				foreach (Def hardRemovedDef in hardRemovedDefs)
+				foreach (Def hardRemovedDef in processedDefs)
 				{
 					if (hardRemovedDef.defName == defName && hardRemovedDef.GetType().Name == type?.Name) return hardRemovedDef;
 				}

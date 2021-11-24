@@ -17,7 +17,7 @@ namespace CherryPicker
 		public static Dictionary<Def, string> searchStringCache; //Sync'd index with allDefs
 		public static HashSet<string> workingList = new HashSet<string>(); //A copy of the user's removed defs but only the defs loaded in this modlist
 		public static List<string> report = new List<string>(); //Gives a console print of changes made
-		public static HashSet<Def> hardRemovedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
+		public static HashSet<Def> processedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
 		public static bool filtered; //Tells the script the filter box is being used
 		public static int lineNumber = 0; //Handles row highlighting and also dynamic window size for the scroll bar
 		public static float cellPosition = 8f; //Tracks the vertical pacement in pixels
@@ -55,7 +55,9 @@ namespace CherryPicker
 				DefDatabase<RitualPatternDef>.AllDefsListForReading,
 				DefDatabase<HairDef>.AllDefsListForReading,
 				DefDatabase<BeardDef>.AllDefsListForReading,
-				DefDatabase<RaidStrategyDef>.AllDefsListForReading
+				DefDatabase<RaidStrategyDef>.AllDefsListForReading,
+				DefDatabase<MainButtonDef>.AllDefsListForReading,
+				DefDatabase<AbilityDef>.AllDefsListForReading
 			}.SelectMany(x => x).Distinct().ToArray();
 
 			//Check for new-users
@@ -89,43 +91,46 @@ namespace CherryPicker
 			workingList.Clear();
 			foreach (string key in removedDefs)
 			{
-				Def def = GetDef(key);
+				Def def = key.ToDef();
 				if (allDefs.Any(x => x == def)) workingList.Add(key);
 			}
 		}
 		public static void ProcessList()
 		{
 			report.Clear();
-			//If a def was just added to the remove list and it's not already on our saved list...
-			workingList.ToList().ForEach(x => removedDefs.Add(x));
 			
-			//Now that the removed list has been updated above, process it, adding and removing as needed
-			bool restartNeeded = false;
-			var removedDefsWorkingList = removedDefs.ToArray();
-			foreach (string key in removedDefsWorkingList)
+			//Handle new removals
+			foreach (string key in workingList.ToList())
 			{
-				Def def = GetDef(key);
-				//Does this removed def exist in this current modlist?
-				if (allDefs.Any(x => x == def))
+				removedDefs.Add(key);
+				//Because it's a hashlist it'll only return true if this def has not been processed already
+				if (processedDefs.Add(key.ToDef()))
 				{
-					//A def was removed from the removedDefs list?
-					if (!workingList.Contains(key)) 
-					{
-						removedDefs.Remove(key);
-						restartNeeded = true;
-					}
-					else report.Add(PsuedoRemoveDef(def) ? "\n - " + key : ("\n<color=red> - Failed: " + key + "</color>"));
+					report.Add(RemoveDef(key.ToDef()) ? "\n - " + key : ("\n<color=red> - Failed: " + key + "</color>"));
 				}
 			}
 
-			allDefs = allDefs.OrderBy(x => !workingList.Contains(GetKey(x))).ToArray();
-			if (restartNeeded)
+			//Handle def restorations or prompt restart
+			bool restart = false;
+			foreach (string key in removedDefs.ToList())
 			{
-				Find.WindowStack.Add(new Dialog_MessageBox("CherryPicker.RestartRequired".Translate(), null, null, null, null, "CherryPicker.RestartHeader".Translate(), true, null, null, WindowLayer.Dialog));
+				restart =
+				(
+					!workingList.Contains(key) && //Is this def in the working list?
+					allDefs.Contains(key.ToDef()) && //Is this def part of the current modlist?
+					removedDefs.Remove(key) && //Could we remove it?
+					processedDefs.Remove(key.ToDef()) && //Mark as no longer processed
+					!TryRestoreDef(key.ToDef()) && //Was the def restorable or do we need to restart?
+					!restart //Make bool a one-way flip
+				);
 			}
+			if (restart) Find.WindowStack.Add(new Dialog_MessageBox("CherryPicker.RestartRequired".Translate(), null, null, null, null, "CherryPicker.RestartHeader".Translate(), true, null, null, WindowLayer.Dialog));
+
+			//Reorder
+			allDefs = allDefs.OrderBy(x => !workingList.Contains(x.ToKey())).ToArray();
 		}
 
-		static bool PsuedoRemoveDef(Def def)
+		public static bool RemoveDef(Def def)
 		{
 			bool reloadRequired = false;
 
@@ -367,28 +372,24 @@ namespace CherryPicker
 						recipeDef.requiredGiverWorkType = null;
 						recipeDef.researchPrerequisite = null;
 						recipeDef.researchPrerequisites?.Clear();
-						hardRemovedDefs.Add(recipeDef);
 						DefDatabase<RecipeDef>.Remove(recipeDef);
 						break;
 					}
 
 					case nameof(TraitDef):
 					{
-						hardRemovedDefs.Add(def);
 						DefDatabase<TraitDef>.Remove(def as TraitDef);
 						break;
 					}
 					
 					case nameof(ResearchProjectDef):
 					{
-						hardRemovedDefs.Add(def);
 						DefDatabase<ResearchProjectDef>.Remove(def as ResearchProjectDef);
 						break;
 					}
 					
 					case nameof(DesignationCategoryDef):
 					{
-						hardRemovedDefs.Add(def);
 						DefDatabase<DesignationCategoryDef>.Remove(def as DesignationCategoryDef);
 						DefDatabase<ThingDef>.AllDefsListForReading.ForEach
 						(x =>
@@ -473,14 +474,12 @@ namespace CherryPicker
 
 					case nameof(MemeDef):
 					{
-						hardRemovedDefs.Add(def);
 						DefDatabase<MemeDef>.Remove(def as MemeDef);
 						break;
 					}
 
 					case nameof(PreceptDef):
 					{
-						hardRemovedDefs.Add(def);
 						PreceptDef preceptDef = def as PreceptDef;
 						preceptDef.allowedForNPCFactions = false;
 						preceptDef.visible = false;
@@ -491,21 +490,18 @@ namespace CherryPicker
 
 					case nameof(RitualPatternDef):
 					{
-						hardRemovedDefs.Add(def);
 						DefDatabase<RitualPatternDef>.Remove(def as RitualPatternDef);
 						break;
 					}
 
 					case nameof(HairDef):
 					{
-						hardRemovedDefs.Add(def);
 						DefDatabase<HairDef>.Remove(def as HairDef);
 						break;
 					}
 
 					case nameof(BeardDef):
 					{
-						hardRemovedDefs.Add(def);
 						DefDatabase<BeardDef>.Remove(def as BeardDef);
 						break;
 					}
@@ -517,7 +513,22 @@ namespace CherryPicker
 						raidStrategyDef.selectionWeightPerPointsCurve = new SimpleCurve() { { new CurvePoint(0, 0), true } };
 						break;
 					}
-					
+
+					case nameof(MainButtonDef):
+					{
+						((MainButtonDef)def).buttonVisible = false;
+						break;
+					}
+
+					case nameof(AbilityDef):
+					{
+						AbilityDef abilityDef = def as AbilityDef;
+						abilityDef.level = int.MaxValue; //Won't make it past the random select filters
+						DefDatabase<PreceptDef>.AllDefsListForReading.ForEach(x => x.grantedAbilities?.Remove(abilityDef));
+						DefDatabase<RoyalTitleDef>.AllDefsListForReading.ForEach(x => x.grantedAbilities?.Remove(abilityDef));
+						break;
+					}
+
 					default: return false;
 				}
 			}
@@ -528,7 +539,51 @@ namespace CherryPicker
 			}
 			if (reloadRequired && Current.ProgramState == ProgramState.Playing)
 			{
-				//Find.WindowStack.Add(new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog));
+				Find.WindowStack.Add(new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog));
+			}
+			return true;
+		}
+
+		public static bool TryRestoreDef(Def def)
+		{
+			switch(def.GetType().Name)
+			{
+				case nameof(TraitDef):
+				{
+					DefDatabase<TraitDef>.Add(def as TraitDef);
+					break;
+				}
+
+				case nameof(MemeDef):
+				{
+					DefDatabase<MemeDef>.Add(def as MemeDef);
+					break;
+				}
+
+				case nameof(RitualPatternDef):
+				{
+					DefDatabase<RitualPatternDef>.Add(def as RitualPatternDef);
+					break;
+				}
+
+				case nameof(HairDef):
+				{
+					DefDatabase<HairDef>.Add(def as HairDef);
+					break;
+				}
+
+				case nameof(BeardDef):
+				{
+					DefDatabase<BeardDef>.Add(def as BeardDef);
+					break;
+				}
+
+				case nameof(MainButtonDef):
+				{
+					((MainButtonDef)def).buttonVisible = true;
+					break;
+				}
+				default: return false;
 			}
 			return true;
 		}

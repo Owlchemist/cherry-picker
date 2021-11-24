@@ -75,7 +75,6 @@ namespace CherryPicker
 
 		public override void WriteSettings()
 		{
-			ProcessList();
 			base.WriteSettings();
 		}
 	}
@@ -84,6 +83,7 @@ namespace CherryPicker
 	{
 		public override void ExposeData()
 		{
+			if (Scribe.mode == LoadSaveMode.Saving) ProcessList();
 			Scribe_Collections.Look(ref removedDefs, "keys", LookMode.Value);
 
 			base.ExposeData();

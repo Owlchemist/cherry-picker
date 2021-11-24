@@ -15,7 +15,7 @@ namespace CherryPicker
 	{
 		static public bool Prefix(ThingDef def, bool __result)
 		{	
-			if (removedDefs.Contains(GetKey(def)))
+			if (removedDefs.Contains(def.ToKey()))
 			{
 				__result = false;
 				return false;
@@ -30,7 +30,7 @@ namespace CherryPicker
 	{
 		static public bool Prefix(Apparel newApparel)
 		{	
-			return !removedDefs.Contains(GetKey(newApparel?.def));
+			return !removedDefs.Contains(newApparel?.def.ToKey());
 		}
     }
 
@@ -42,7 +42,7 @@ namespace CherryPicker
 		{
 			foreach (var thingDef in values)
 			{
-				if (!removedDefs.Contains(GetKey(thingDef))) yield return thingDef;
+				if (!removedDefs.Contains(thingDef.ToKey())) yield return thingDef;
 			}
 		}
     }
@@ -58,7 +58,7 @@ namespace CherryPicker
 	{
 		static bool Prefix(Hediff hediff)
 		{
-			return !removedDefs.Contains(GetKey(hediff.def));
+			return !removedDefs.Contains(hediff.def.ToKey());
 		}
     }
 }
