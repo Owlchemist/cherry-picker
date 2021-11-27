@@ -2,13 +2,34 @@ using Verse;
 using RimWorld;
 using UnityEngine;
 using Verse.Sound;
-using static CherryPicker.DefUtility;
+using static CherryPicker.ModSettings_CherryPicker;
 using static CherryPicker.CherryPickerUtility;
  
 namespace CherryPicker
 {
     internal static class DrawUtility
 	{
+		public static int lineNumber; //Handles row highlighting and also dynamic window size for the scroll bar
+		static int cellPosition; //Tracks the vertical pacement in pixels
+		public const int lineHeight = 22; //Text.LineHeight + options.verticalSpacing;
+		
+		public static void DrawList(Rect container, Listing_Standard options)
+		{
+			lineNumber = cellPosition = 0; //Reset
+			//List out all the unremoved defs from the compiled database
+			foreach (Def def in allDefs)
+			{
+				if (def != null && (!filtered || (searchStringCache.TryGetValue(def)?.Contains(filter) ?? false)))
+				{
+					cellPosition += lineHeight;
+					++lineNumber;
+					
+					if (cellPosition > scrollPos.y - container.height && cellPosition < scrollPos.y + container.height) DrawListItem(options, def);
+				}
+				
+			}
+		}
+
 		public static void DrawListItem(Listing_Standard options, Def def)
 		{
 			//Prepare key

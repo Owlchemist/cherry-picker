@@ -20,7 +20,6 @@ namespace CherryPicker
 			LongEventHandler.QueueLongEvent(() => Setup(), null, false, null);
 		}
 
-		static int lastNumOfLines = 1;
 		public override void DoSettingsWindowContents(Rect inRect)
 		{
 			Listing_Standard options = new Listing_Standard();
@@ -32,12 +31,11 @@ namespace CherryPicker
 			scrollViewRect.yMax -= 30f;
 			
 			//Prepare line height cache
-			Text.Font = GameFont.Tiny;
 			TextAnchor anchor = Text.Anchor;
 			Text.Anchor = TextAnchor.MiddleLeft;
 
 			//Calculate size of rect based on content
-			Rect listRect = new Rect(0f, 0f, inRect.width - 30f, (lastNumOfLines + 2) * lineHeight);
+			Rect listRect = new Rect(0f, 0f, inRect.width - 30f, (lineNumber + 2) * lineHeight);
 
 			options.Begin(inRect);
 				filter = options.TextEntryLabeled("Filter: ", filter);
@@ -45,22 +43,7 @@ namespace CherryPicker
 			options.End();
 			Widgets.BeginScrollView(scrollViewRect, ref scrollPos, listRect, true);
 				options.Begin(listRect);
-				
-				//List out all the unremoved defs from the compiled database
-				foreach (Def def in allDefs)
-				{
-					if (def != null && (!filtered || (searchStringCache.TryGetValue(def)?.Contains(filter) ?? false)))
-					{
-						cellPosition += lineHeight;
-						++lineNumber;
-						if (cellPosition > scrollPos.y - inRect.height && cellPosition < scrollPos.y + inRect.height) DrawListItem(options, def);
-					}
-					
-				}
-				lastNumOfLines = lineNumber;
-				lineNumber = 0;
-				cellPosition = 0;
-				Text.Font = GameFont.Small;
+				DrawList(inRect, options);
 				Text.Anchor = anchor;
 				options.End();
 			Widgets.EndScrollView();
@@ -83,7 +66,18 @@ namespace CherryPicker
 	{
 		public override void ExposeData()
 		{
-			if (Scribe.mode == LoadSaveMode.Saving) ProcessList();
+			if (Scribe.mode == LoadSaveMode.Saving)
+			{
+				try
+				{
+					ProcessList();
+				}
+				catch (Exception)
+				{                
+					Log.Error("[Cherry Picker] Error processing list. Skipping to preserve data...");
+				}
+			}
+			
 			Scribe_Collections.Look(ref removedDefs, "keys", LookMode.Value);
 
 			base.ExposeData();

@@ -2,10 +2,7 @@ using Verse;
 using System.Collections.Generic;
 using System;
 using System.Linq;
-using System.Reflection;
 using RimWorld;
-using UnityEngine;
-using Verse.Sound;
 using static CherryPicker.ModSettings_CherryPicker;
 using static CherryPicker.DefUtility;
  
@@ -19,9 +16,6 @@ namespace CherryPicker
 		public static List<string> report = new List<string>(); //Gives a console print of changes made
 		public static HashSet<Def> processedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
 		public static bool filtered; //Tells the script the filter box is being used
-		public static int lineNumber = 0; //Handles row highlighting and also dynamic window size for the scroll bar
-		public static float cellPosition = 8f; //Tracks the vertical pacement in pixels
-		public const float lineHeight = 22f; //Text.LineHeight + options.verticalSpacing;
 
 		public static void Setup()
 		{
@@ -36,28 +30,28 @@ namespace CherryPicker
 				DefDatabase<ThingDef>.AllDefsListForReading.Where
 					(x => !x.IsBlueprint && !x.IsFrame && !x.IsCorpse && !x.isUnfinishedThing &&
 					(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
-				DefDatabase<TerrainDef>.AllDefsListForReading,
-				DefDatabase<RecipeDef>.AllDefsListForReading,
-				DefDatabase<TraitDef>.AllDefsListForReading,
+				DefDatabase<TerrainDef>.AllDefs,
+				DefDatabase<RecipeDef>.AllDefs,
+				DefDatabase<TraitDef>.AllDefs,
 				DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(x => DefDatabase<ResearchProjectDef>.AllDefsListForReading.
 								Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true))),
-				DefDatabase<DesignationCategoryDef>.AllDefsListForReading,
-				DefDatabase<ThingStyleDef>.AllDefsListForReading,
+				DefDatabase<DesignationCategoryDef>.AllDefs,
+				DefDatabase<ThingStyleDef>.AllDefs,
 				DefDatabase<QuestScriptDef>.AllDefsListForReading.Where(x => !DefDatabase<IncidentDef>.AllDefsListForReading.Any(y => y.questScriptDef == x)),
-				DefDatabase<IncidentDef>.AllDefsListForReading,
-				DefDatabase<HediffDef>.AllDefsListForReading,
-				DefDatabase<ThoughtDef>.AllDefsListForReading,
-				DefDatabase<TraderKindDef>.AllDefsListForReading,
-				DefDatabase<GatheringDef>.AllDefsListForReading,
-				DefDatabase<WorkTypeDef>.AllDefsListForReading,
-				DefDatabase<MemeDef>.AllDefsListForReading,
-				DefDatabase<PreceptDef>.AllDefsListForReading,
-				DefDatabase<RitualPatternDef>.AllDefsListForReading,
-				DefDatabase<HairDef>.AllDefsListForReading,
-				DefDatabase<BeardDef>.AllDefsListForReading,
-				DefDatabase<RaidStrategyDef>.AllDefsListForReading,
-				DefDatabase<MainButtonDef>.AllDefsListForReading,
-				DefDatabase<AbilityDef>.AllDefsListForReading
+				DefDatabase<IncidentDef>.AllDefs,
+				DefDatabase<HediffDef>.AllDefs,
+				DefDatabase<ThoughtDef>.AllDefs,
+				DefDatabase<TraderKindDef>.AllDefs,
+				DefDatabase<GatheringDef>.AllDefs,
+				DefDatabase<WorkTypeDef>.AllDefs,
+				DefDatabase<MemeDef>.AllDefs,
+				DefDatabase<PreceptDef>.AllDefs,
+				DefDatabase<RitualPatternDef>.AllDefs,
+				DefDatabase<HairDef>.AllDefs,
+				DefDatabase<BeardDef>.AllDefs,
+				DefDatabase<RaidStrategyDef>.AllDefs,
+				DefDatabase<MainButtonDef>.AllDefs,
+				DefDatabase<AbilityDef>.AllDefs
 			}.SelectMany(x => x).Distinct().ToArray();
 
 			//Check for new-users
@@ -72,7 +66,12 @@ namespace CherryPicker
 			TimeSpan timeTaken = timer.Elapsed;
 
 			//Give report
-			if (report.Count > 0) Log.Message("[Cherry Picker] The database was processed in " + timeTaken.ToString(@"ss\.fffff") + " seconds and the following defs were removed: " + string.Join(", ", report));
+			if (report.Count > 0)
+			{
+				Log.Message("[Cherry Picker] The database was processed in " + timeTaken.ToString(@"ss\.fffff") + " seconds and the following defs were removed" + 
+				(report.Any(x => x.Contains("FAILED:")) ? " <color=red>with " + report.Count(x => x.Contains("FAILED:")).ToString() + " errors</color>" : "") + ": " + 
+				string.Join(", ", report));
+			}
 		}
 
 		public static void MakeLabelCache()
@@ -100,13 +99,13 @@ namespace CherryPicker
 			report.Clear();
 			
 			//Handle new removals
-			foreach (string key in workingList.ToList())
+			foreach (string key in workingList)
 			{
 				removedDefs.Add(key);
 				//Because it's a hashlist it'll only return true if this def has not been processed already
 				if (processedDefs.Add(key.ToDef()))
 				{
-					report.Add(RemoveDef(key.ToDef()) ? "\n - " + key : ("\n<color=red> - Failed: " + key + "</color>"));
+					report.Add(RemoveDef(key.ToDef()) ? "\n - " + key : ("\n - FAILED: " + key));
 				}
 			}
 
@@ -114,13 +113,14 @@ namespace CherryPicker
 			bool restart = false;
 			foreach (string key in removedDefs.ToList())
 			{
+				Def def = key.ToDef();
 				restart =
 				(
 					!workingList.Contains(key) && //Is this def in the working list?
-					allDefs.Contains(key.ToDef()) && //Is this def part of the current modlist?
+					allDefs.Contains(def) && //Is this def part of the current modlist?
 					removedDefs.Remove(key) && //Could we remove it?
-					processedDefs.Remove(key.ToDef()) && //Mark as no longer processed
-					!TryRestoreDef(key.ToDef()) && //Was the def restorable or do we need to restart?
+					processedDefs.Remove(def) && //Mark as no longer processed
+					!TryRestoreDef(def) && //Was the def restorable or do we need to restart?
 					!restart //Make bool a one-way flip
 				);
 			}
@@ -259,12 +259,14 @@ namespace CherryPicker
 							);
 
 							//Butchery and Costlists
-							DefDatabase<ThingDef>.AllDefsListForReading.ForEach(x =>
+							int length = DefDatabase<ThingDef>.DefCount;
+							for (int i = 0; i < length; ++i)
 							{
+								ThingDef x = DefDatabase<ThingDef>.defsList[i];
 								x.costList?.RemoveAll(y => y.thingDef == thingDef);
 								x.costListForDifficulty?.costList?.RemoveAll(y => y.thingDef == thingDef);
 								x.butcherProducts?.RemoveAll(z => z.thingDef == thingDef);
-							});
+							}
 
 							//Makes this stuff material not show up in generated items
 							if (thingDef.stuffProps != null) thingDef.stuffProps.commonality = 0;
@@ -362,13 +364,13 @@ namespace CherryPicker
 								x.allRecipesCached?.Remove(recipeDef);
 							}
 						);
-						DefDatabase<ThingDef>.AllDefsListForReading.ForEach
-						(x => 
-							{
-								x.allRecipesCached?.Remove(recipeDef);
-								x.recipes?.Remove(recipeDef);
-							}
-						);
+						int length = DefDatabase<ThingDef>.DefCount;
+						for (int i = 0; i < length; ++i)
+						{
+							ThingDef x = DefDatabase<ThingDef>.defsList[i];
+							x.allRecipesCached?.Remove(recipeDef);
+							x.recipes?.Remove(recipeDef);
+						}
 						recipeDef.requiredGiverWorkType = null;
 						recipeDef.researchPrerequisite = null;
 						recipeDef.researchPrerequisites?.Clear();
@@ -384,19 +386,36 @@ namespace CherryPicker
 					
 					case nameof(ResearchProjectDef):
 					{
-						DefDatabase<ResearchProjectDef>.Remove(def as ResearchProjectDef);
+						ResearchProjectDef researchProjectDef = def as ResearchProjectDef;
+
+						//Do any other research project use as a prereq?
+						foreach (ResearchProjectDef entry in DefDatabase<ResearchProjectDef>.AllDefsListForReading)
+						{
+							if (entry.prerequisites?.Contains(researchProjectDef) ?? false)
+							{
+								entry.prerequisites.AddRange(researchProjectDef.prerequisites?.Where(x => !entry.prerequisites.Contains(x)) ?? Enumerable.Empty<ResearchProjectDef>());
+							}
+							if (entry.hiddenPrerequisites?.Contains(researchProjectDef) ?? false)
+							{
+								entry.hiddenPrerequisites.AddRange(researchProjectDef.hiddenPrerequisites?.Where(x => !entry.prerequisites.Contains(x)) ?? Enumerable.Empty<ResearchProjectDef>());
+							}
+							entry.prerequisites?.RemoveAll(x => x == researchProjectDef);
+							entry.hiddenPrerequisites?.RemoveAll(x => x == researchProjectDef);
+						}
+						DefDatabase<ResearchProjectDef>.Remove(researchProjectDef);
 						break;
 					}
 					
 					case nameof(DesignationCategoryDef):
 					{
 						DefDatabase<DesignationCategoryDef>.Remove(def as DesignationCategoryDef);
-						DefDatabase<ThingDef>.AllDefsListForReading.ForEach
-						(x =>
-							{
-								if (x.designationCategory == def as DesignationCategoryDef) x.designationCategory = null;
-							}
-						);
+						
+						int length = DefDatabase<ThingDef>.DefCount;
+						for (int i = 0; i < length; ++i)
+						{
+							ThingDef x = DefDatabase<ThingDef>.defsList[i];
+							if (x.designationCategory == def as DesignationCategoryDef) x.designationCategory = null;
+						}
 
 						if (Current.ProgramState == ProgramState.Playing) reloadRequired = true;
 						break;
@@ -532,9 +551,9 @@ namespace CherryPicker
 					default: return false;
 				}
 			}
-			//In the event there's a bug, this will at least allow the user to not be stuck in the options menu
-			catch (System.NullReferenceException)
-			{
+			//In the event there's a bug, this will prevent the exposure from hanging and causing data loss
+			catch (Exception)            
+			{                
 				return false;
 			}
 			if (reloadRequired && Current.ProgramState == ProgramState.Playing)
@@ -546,44 +565,51 @@ namespace CherryPicker
 
 		public static bool TryRestoreDef(Def def)
 		{
-			switch(def.GetType().Name)
+			try
 			{
-				case nameof(TraitDef):
+				switch(def.GetType().Name)
 				{
-					DefDatabase<TraitDef>.Add(def as TraitDef);
-					break;
-				}
+					case nameof(TraitDef):
+					{
+						DefDatabase<TraitDef>.Add(def as TraitDef);
+						break;
+					}
 
-				case nameof(MemeDef):
-				{
-					DefDatabase<MemeDef>.Add(def as MemeDef);
-					break;
-				}
+					case nameof(MemeDef):
+					{
+						DefDatabase<MemeDef>.Add(def as MemeDef);
+						break;
+					}
 
-				case nameof(RitualPatternDef):
-				{
-					DefDatabase<RitualPatternDef>.Add(def as RitualPatternDef);
-					break;
-				}
+					case nameof(RitualPatternDef):
+					{
+						DefDatabase<RitualPatternDef>.Add(def as RitualPatternDef);
+						break;
+					}
 
-				case nameof(HairDef):
-				{
-					DefDatabase<HairDef>.Add(def as HairDef);
-					break;
-				}
+					case nameof(HairDef):
+					{
+						DefDatabase<HairDef>.Add(def as HairDef);
+						break;
+					}
 
-				case nameof(BeardDef):
-				{
-					DefDatabase<BeardDef>.Add(def as BeardDef);
-					break;
-				}
+					case nameof(BeardDef):
+					{
+						DefDatabase<BeardDef>.Add(def as BeardDef);
+						break;
+					}
 
-				case nameof(MainButtonDef):
-				{
-					((MainButtonDef)def).buttonVisible = true;
-					break;
+					case nameof(MainButtonDef):
+					{
+						((MainButtonDef)def).buttonVisible = true;
+						break;
+					}
+					default: return false;
 				}
-				default: return false;
+			}
+			catch (Exception)            
+			{                
+				return false;
 			}
 			return true;
 		}
