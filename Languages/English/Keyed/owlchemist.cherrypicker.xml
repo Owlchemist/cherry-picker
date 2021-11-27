@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <LanguageData>
-	<CherryPicker.RestartRequired>Restoring definitions to their original values requires a game restart.</CherryPicker.RestartRequired>
 	<CherryPicker.RestartHeader>Restart required</CherryPicker.RestartHeader>
+	<CherryPicker.RestartRequired>Restoring definitions to their original values requires a game restart.</CherryPicker.RestartRequired>
+	
+	<CherryPicker.ReloadHeader>Reload required</CherryPicker.ReloadHeader>
+	<CherryPicker.ReloadRequired>These particular changes require reloading the save game. You do not need to restart the game.</CherryPicker.ReloadRequired>
 </LanguageData>

@@ -16,4 +16,8 @@
 			<steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
 		</li>
 	</modDependencies>
+	
+	<loadBefore>
+		<li>vinalx.researchpalforked</li>
+	</loadBefore>
 </ModMetaData>
