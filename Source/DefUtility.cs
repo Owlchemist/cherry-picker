@@ -1,5 +1,6 @@
 using Verse;
 using System;
+using RimWorld;
 using static CherryPicker.CherryPickerUtility;
  
 namespace CherryPicker
@@ -26,7 +27,7 @@ namespace CherryPicker
 		}
 		public static Def GetDef(string defName, Type type)
 		{
-			if (defName.NullOrEmpty() || type == null) return null;	
+			if (defName.NullOrEmpty() || type == null || type == typeof(Backstory)) return null;	
 			
 			Def def = (Def)GenGeneric.InvokeStaticMethodOnGenericType(typeof(DefDatabase<>), type, nameof(DefDatabase<Def>.GetNamed), defName, false);
 			if (def == null)

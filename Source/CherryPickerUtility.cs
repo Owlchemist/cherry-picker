@@ -8,6 +8,7 @@ using static CherryPicker.DefUtility;
  
 namespace CherryPicker
 {
+	[StaticConstructorOnStartup]
     internal static class CherryPickerUtility
 	{
 		public static Def[] allDefs; //All defs this mod supports editting
@@ -15,18 +16,39 @@ namespace CherryPicker
 		public static HashSet<string> workingList = new HashSet<string>(); //A copy of the user's removed defs but only the defs loaded in this modlist
 		public static List<string> report = new List<string>(); //Gives a console print of changes made
 		public static HashSet<Def> processedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
+		public static HashSet<Backstory> removedBackstories = new HashSet<Backstory>(); //Used to keep track of direct DB removals
 		public static bool filtered; //Tells the script the filter box is being used
 
-		public static void Setup()
+		static CherryPickerUtility()
 		{
 			rootAssembly = typeof(ThingDef).Assembly;
 
 			var timer = new System.Diagnostics.Stopwatch();
   			timer.Start();
 
+			//Check for new-users
+			if (removedDefs == null) removedDefs = new HashSet<string>();
+			
+			Setup();
+
+			timer.Stop();
+			TimeSpan timeTaken = timer.Elapsed;
+
+			//Give report
+			if (report.Count > 0)
+			{
+				Log.Message("[Cherry Picker] The database was processed in " + timeTaken.ToString(@"ss\.fffff") + " seconds and the following defs were removed" + 
+				(report.Any(x => x.Contains("FAILED:")) ? " <color=red>with " + report.Count(x => x.Contains("FAILED:")).ToString() + " errors</color>" : "") + ": " + 
+				string.Join(", ", report));
+			}
+		}
+
+		public static void Setup(bool secondPass = false)
+		{
 			//Fetch all our def lists across multiple categories
 			allDefs = new IEnumerable<Def>[]
 			{
+				processedDefs,
 				DefDatabase<ThingDef>.AllDefsListForReading.Where
 					(x => !x.IsBlueprint && !x.IsFrame && !x.IsCorpse && !x.isUnfinishedThing &&
 					(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
@@ -51,26 +73,25 @@ namespace CherryPicker
 				DefDatabase<BeardDef>.AllDefs,
 				DefDatabase<RaidStrategyDef>.AllDefs,
 				DefDatabase<MainButtonDef>.AllDefs,
-				DefDatabase<AbilityDef>.AllDefs
+				DefDatabase<AbilityDef>.AllDefs,
+				DefDatabase<BiomeDef>.AllDefs,
+				DefDatabase<MentalBreakDef>.AllDefs
 			}.SelectMany(x => x).Distinct().ToArray();
 
-			//Check for new-users
-			if (removedDefs == null) removedDefs = new HashSet<string>();
-			
 			//Process lists
 			MakeLabelCache();
 			MakeWorkingList();
 			ProcessList();
 
-			timer.Stop();
-			TimeSpan timeTaken = timer.Elapsed;
-
-			//Give report
-			if (report.Count > 0)
+			if (secondPass)
 			{
-				Log.Message("[Cherry Picker] The database was processed in " + timeTaken.ToString(@"ss\.fffff") + " seconds and the following defs were removed" + 
-				(report.Any(x => x.Contains("FAILED:")) ? " <color=red>with " + report.Count(x => x.Contains("FAILED:")).ToString() + " errors</color>" : "") + ": " + 
-				string.Join(", ", report));
+				//Give report
+				if (report.Count > 0)
+				{
+					Log.Message("[Cherry Picker] These dynamically generated defs were also processed" + 
+					(report.Any(x => x.Contains("FAILED:")) ? " <color=red>with " + report.Count(x => x.Contains("FAILED:")).ToString() + " errors</color>" : "") + ": " + 
+					string.Join(", ", report));
+				}
 			}
 		}
 
@@ -90,7 +111,15 @@ namespace CherryPicker
 			workingList.Clear();
 			foreach (string key in removedDefs)
 			{
-				Def def = key.ToDef();
+				Type type = GetDefType(key);
+				string defName = GetDefName(key);
+				if (type == typeof(Backstory))
+				{
+					if (BackstoryDatabase.allBackstories.ContainsKey(defName)) workingList.Add("Backstory/" + defName);
+					continue;
+				} 
+
+				Def def = GetDef(defName, type);
 				if (allDefs.Any(x => x == def)) workingList.Add(key);
 			}
 		}
@@ -102,10 +131,22 @@ namespace CherryPicker
 			foreach (string key in workingList)
 			{
 				removedDefs.Add(key);
-				//Because it's a hashlist it'll only return true if this def has not been processed already
-				if (processedDefs.Add(key.ToDef()))
+				Type type = GetDefType(key);
+				string defName = GetDefName(key);
+
+				//Special handling for backstories
+				if (type == typeof(Backstory))
 				{
-					report.Add(RemoveDef(key.ToDef()) ? "\n - " + key : ("\n - FAILED: " + key));
+					if (BackstoryDatabase.allBackstories.TryGetValue(defName, out Backstory backstory)) removedBackstories.Add(backstory);
+					report.Add(BackstoryDatabase.allBackstories.Remove(defName) ? "\n - " + key : ("\n - FAILED: " + key));
+					continue;
+				}
+
+				Def def = GetDef(defName, type);
+				//Because it's a hashlist it'll only return true if this def has not been processed already
+				if (processedDefs.Add(def))
+				{
+					report.Add(RemoveDef(def) ? "\n - " + key : ("\n - FAILED: " + key));
 				}
 			}
 
@@ -113,7 +154,21 @@ namespace CherryPicker
 			bool restart = false;
 			foreach (string key in removedDefs.ToList())
 			{
-				Def def = key.ToDef();
+				Type type = GetDefType(key);
+				string defName = GetDefName(key);
+				if (type == typeof(Backstory))
+				{
+					var backstory = removedBackstories.FirstOrDefault(x => x.identifier == defName);
+					if (!workingList.Contains(key) && backstory != null)
+					{
+						BackstoryDatabase.allBackstories.Add(defName, backstory);
+					 	removedBackstories.Remove(backstory);
+						removedDefs.Remove(key);
+					}
+					continue;
+				}
+
+				Def def = GetDef(defName, type);
 				restart =
 				(
 					!workingList.Contains(key) && //Is this def in the working list?
@@ -129,7 +184,6 @@ namespace CherryPicker
 			//Reorder
 			allDefs = allDefs.OrderBy(x => !workingList.Contains(x.ToKey())).ToArray();
 		}
-
 		public static bool RemoveDef(Def def)
 		{
 			bool reloadRequired = false;
@@ -235,31 +289,31 @@ namespace CherryPicker
 						else if (thingDef.category == ThingCategory.Item)
 						{
 							//Scenario starting items
-							DefDatabase<ScenarioDef>.AllDefsListForReading.ForEach
-							(x => 
-								x.scenario.parts?.RemoveAll(y => y.GetType() == typeof(ScenPart_StartingThing_Defined) && y.ChangeType<ScenPart_StartingThing_Defined>().thingDef == thingDef)
-							);
+							foreach (ScenarioDef scenarioDef in DefDatabase<ScenarioDef>.AllDefsListForReading)
+							{
+								scenarioDef.scenario.parts?.RemoveAll(y => y.GetType() == typeof(ScenPart_StartingThing_Defined) && 
+									y.ChangeType<ScenPart_StartingThing_Defined>().thingDef == thingDef);
+							}
 
 							//Remove from recipe ingredients
-							DefDatabase<RecipeDef>.AllDefsListForReading.ForEach
-							(x =>
+							int length = DefDatabase<RecipeDef>.DefCount;
+							for (int i = 0; i < length; ++i)
+							{
+								RecipeDef recipeDef = DefDatabase<RecipeDef>.defsList[i];
+								foreach (IngredientCount ingredientCount in recipeDef.ingredients ?? Enumerable.Empty<IngredientCount>())
 								{
-									x.ingredients?.ForEach
-									(y =>
-										{
-										y.filter?.thingDefs?.Remove(thingDef);
-										y.filter?.allowedDefs?.Remove(thingDef);
-										}
-									);
-									x.fixedIngredientFilter?.thingDefs?.Remove(thingDef);
-									x.fixedIngredientFilter?.allowedDefs?.Remove(thingDef);
-									x.defaultIngredientFilter?.thingDefs?.Remove(thingDef);
-									x.defaultIngredientFilter?.allowedDefs?.Remove(thingDef);
+									ingredientCount.filter?.thingDefs?.Remove(thingDef);
+									ingredientCount.filter?.allowedDefs?.Remove(thingDef);
 								}
-							);
+
+								recipeDef.fixedIngredientFilter?.thingDefs?.Remove(thingDef);
+								recipeDef.fixedIngredientFilter?.allowedDefs?.Remove(thingDef);
+								recipeDef.defaultIngredientFilter?.thingDefs?.Remove(thingDef);
+								recipeDef.defaultIngredientFilter?.allowedDefs?.Remove(thingDef);
+							}
 
 							//Butchery and Costlists
-							int length = DefDatabase<ThingDef>.DefCount;
+							length = DefDatabase<ThingDef>.DefCount;
 							for (int i = 0; i < length; ++i)
 							{
 								ThingDef x = DefDatabase<ThingDef>.defsList[i];
@@ -267,6 +321,9 @@ namespace CherryPicker
 								x.costListForDifficulty?.costList?.RemoveAll(y => y.thingDef == thingDef);
 								x.butcherProducts?.RemoveAll(z => z.thingDef == thingDef);
 							}
+
+							//If medicine...
+							thingDef.statBases?.RemoveAll(x => x.stat == StatDefOf.MedicalPotency);
 
 							//Makes this stuff material not show up in generated items
 							if (thingDef.stuffProps != null) thingDef.stuffProps.commonality = 0;
@@ -314,18 +371,20 @@ namespace CherryPicker
 							thingDef.tradeTags?.Clear();
 							//Omits from migration event
 							thingDef.race.herdMigrationAllowed = false;
+							//For farm animal joins event
+							thingDef.race.wildness = 1f;
+
 							//Omits from manhunter event
-							DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach
-							(x =>
+							foreach (var pawnKindDef in DefDatabase<PawnKindDef>.AllDefsListForReading)
+							{
+								if (pawnKindDef.race.defName == def.defName)
 								{
-									if (x.race.defName == def.defName)
-									{
-										x.canArriveManhunter = false;
-										x.combatPower = float.MaxValue; //Makes too expensive to ever buy with points
-										x.isGoodBreacher = false; //Special checks
-									}
+									pawnKindDef.canArriveManhunter = false;
+									pawnKindDef.combatPower = float.MaxValue; //Makes too expensive to ever buy with points
+									pawnKindDef.isGoodBreacher = false; //Special checks
 								}
-							);
+							}
+							
 
 							/*
 							if (thingDef.race.animalType == AnimalType.Dryad)
@@ -548,6 +607,18 @@ namespace CherryPicker
 						break;
 					}
 
+					case nameof(BiomeDef):
+					{
+						((BiomeDef)def).implemented = false;
+						break;
+					}
+
+					case nameof(MentalBreakDef):
+					{
+						((MentalBreakDef)def).baseCommonality = 0;
+						break;
+					}
+
 					default: return false;
 				}
 			}
@@ -562,7 +633,6 @@ namespace CherryPicker
 			}
 			return true;
 		}
-
 		public static bool TryRestoreDef(Def def)
 		{
 			try
@@ -604,6 +674,13 @@ namespace CherryPicker
 						((MainButtonDef)def).buttonVisible = true;
 						break;
 					}
+
+					case nameof(BiomeDef):
+					{
+						((BiomeDef)def).implemented = true;
+						break;
+					}
+
 					default: return false;
 				}
 			}

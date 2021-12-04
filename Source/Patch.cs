@@ -5,7 +5,6 @@ using RimWorld;
 using System.Collections.Generic;
 using System;
 using static CherryPicker.ModSettings_CherryPicker;
-using static CherryPicker.DefUtility;
 
 namespace CherryPicker
 {
@@ -59,6 +58,18 @@ namespace CherryPicker
 		static bool Prefix(Hediff hediff)
 		{
 			return !removedDefs.Contains(hediff.def.ToKey());
+		}
+    }
+
+	//Run a second time to catch defs that are generated on runtime
+	[HarmonyPatch(typeof(MainMenuDrawer), nameof(MainMenuDrawer.MainMenuOnGUI))]
+	public class Patch_MainMenuDrawer_MainMenuOnGUI
+	{
+		static bool hasRan;
+		static void Postfix()
+		{
+			if (!hasRan) CherryPickerUtility.Setup(true);
+			hasRan = true;
 		}
     }
 }

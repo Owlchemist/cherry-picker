@@ -2,6 +2,7 @@ using Verse;
 using RimWorld;
 using UnityEngine;
 using Verse.Sound;
+using System.Linq;
 using static CherryPicker.ModSettings_CherryPicker;
 using static CherryPicker.CherryPickerUtility;
  
@@ -27,6 +28,16 @@ namespace CherryPicker
 					if (cellPosition > scrollPos.y - container.height && cellPosition < scrollPos.y + container.height) DrawListItem(options, def);
 				}
 				
+			}
+			foreach (var backstory in removedBackstories.Concat(BackstoryDatabase.allBackstories.Values))
+			{
+				if (!filtered || ("backstory" + backstory.title).Contains(filter))
+				{
+					cellPosition += lineHeight;
+					++lineNumber;
+					
+					if (cellPosition > scrollPos.y - container.height && cellPosition < scrollPos.y + container.height) DrawBSListItem(options, backstory);
+				}
 			}
 		}
 
@@ -57,6 +68,41 @@ namespace CherryPicker
 
 			//Tooltip
 			TooltipHandler.TipRegion(rect, dataString + "\n\n" + def.description);
+			
+			//Add to working list if missing
+			if (!checkOn && !workingList.Contains(key)) workingList.Add(key);
+			//Remove from working list
+			else if (checkOn && workingList.Contains(key)) workingList.Remove(key);
+		}
+
+		//Todo: refactor DrawListItem and DrawBSListItem to combine more elegantly
+		public static void DrawBSListItem(Listing_Standard options, Backstory def)
+		{
+			//Prepare key
+			string key = "Backstory/" + def.identifier;
+
+			//Determine checkbox status...
+			bool checkOn = !workingList?.Contains(key) ?? false;
+			//Draw...
+			Rect rect = options.GetRect(lineHeight);
+			rect.y = cellPosition;
+
+			//Label
+			string dataString = "Backstory :: " + def.identifier;
+
+			//Actually draw the line item
+			if (options.BoundingRectCached == null || rect.Overlaps(options.BoundingRectCached.Value))
+			{
+				CheckboxLabeled(rect, dataString, def.title, ref checkOn, null);
+			}
+
+			//Handle row coloring and spacing
+			options.Gap(options.verticalSpacing);
+			if (lineNumber % 2 != 0) Widgets.DrawLightHighlight(rect);
+			Widgets.DrawHighlightIfMouseover(rect);
+
+			//Tooltip
+			TooltipHandler.TipRegion(rect, dataString + "\n\n" + def.descTranslated);
 			
 			//Add to working list if missing
 			if (!checkOn && !workingList.Contains(key)) workingList.Add(key);
