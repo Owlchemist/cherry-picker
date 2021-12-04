@@ -13,17 +13,17 @@ namespace CherryPicker
 		{
 			return def == null ? "" : (def.GetType().Name + "/" + def.defName);
 		}
-		public static string GetDefName(string def)
+		public static string ToDefName(this string def)
 		{
 			return def.Split('/')[1];
 		}
-		public static Type GetDefType(string def)
+		public static Type ToType(this string def)
 		{
 			return rootAssembly.GetType("Verse." + def.Split('/')[0]) ?? rootAssembly.GetType("RimWorld." + def.Split('/')[0]);
 		}
 		public static Def ToDef(this string key)
 		{
-			return GetDef(GetDefName(key), GetDefType(key));
+			return GetDef(key.ToDefName(), key.ToType());
 		}
 		public static Def GetDef(string defName, Type type)
 		{
@@ -34,7 +34,7 @@ namespace CherryPicker
 			{
 				foreach (Def hardRemovedDef in processedDefs)
 				{
-					if (hardRemovedDef.defName == defName && hardRemovedDef.GetType().Name == type?.Name) return hardRemovedDef;
+					if (hardRemovedDef.defName == defName && hardRemovedDef.GetType() == type) return hardRemovedDef;
 				}
 			}
 			

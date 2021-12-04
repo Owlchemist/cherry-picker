@@ -17,7 +17,9 @@ namespace CherryPicker
 		public static List<string> report = new List<string>(); //Gives a console print of changes made
 		public static HashSet<Def> processedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
 		public static HashSet<Backstory> removedBackstories = new HashSet<Backstory>(); //Used to keep track of direct DB removals
+		public static ThingCategoryDef[] categoryCache;
 		public static bool filtered; //Tells the script the filter box is being used
+		public static Dialog_MessageBox reloadGameMessage = new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog);
 
 		static CherryPickerUtility()
 		{
@@ -75,8 +77,12 @@ namespace CherryPicker
 				DefDatabase<MainButtonDef>.AllDefs,
 				DefDatabase<AbilityDef>.AllDefs,
 				DefDatabase<BiomeDef>.AllDefs,
-				DefDatabase<MentalBreakDef>.AllDefs
+				DefDatabase<MentalBreakDef>.AllDefs,
+				DefDatabase<SpecialThingFilterDef>.AllDefs
 			}.SelectMany(x => x).Distinct().ToArray();
+
+			//Avoid having to recompile this list for each thingdef
+			categoryCache = DefDatabase<ThingCategoryDef>.AllDefsListForReading.SelectMany(x => x.ThisAndChildCategoryDefs ?? Enumerable.Empty<ThingCategoryDef>()).ToArray();
 
 			//Process lists
 			MakeLabelCache();
@@ -111,8 +117,8 @@ namespace CherryPicker
 			workingList.Clear();
 			foreach (string key in removedDefs)
 			{
-				Type type = GetDefType(key);
-				string defName = GetDefName(key);
+				Type type = key.ToType();
+				string defName = key.ToDefName();
 				if (type == typeof(Backstory))
 				{
 					if (BackstoryDatabase.allBackstories.ContainsKey(defName)) workingList.Add("Backstory/" + defName);
@@ -120,7 +126,7 @@ namespace CherryPicker
 				} 
 
 				Def def = GetDef(defName, type);
-				if (allDefs.Any(x => x == def)) workingList.Add(key);
+				if (allDefs.Contains(def)) workingList.Add(key);
 			}
 		}
 		public static void ProcessList()
@@ -131,8 +137,8 @@ namespace CherryPicker
 			foreach (string key in workingList)
 			{
 				removedDefs.Add(key);
-				Type type = GetDefType(key);
-				string defName = GetDefName(key);
+				Type type = key.ToType();
+				string defName = key.ToDefName();
 
 				//Special handling for backstories
 				if (type == typeof(Backstory))
@@ -154,8 +160,8 @@ namespace CherryPicker
 			bool restart = false;
 			foreach (string key in removedDefs.ToList())
 			{
-				Type type = GetDefType(key);
-				string defName = GetDefName(key);
+				Type type = key.ToType();
+				string defName = key.ToDefName();
 				if (type == typeof(Backstory))
 				{
 					var backstory = removedBackstories.FirstOrDefault(x => x.identifier == defName);
@@ -201,14 +207,12 @@ namespace CherryPicker
 						thingDef.thingSetMakerTags?.Clear(); //Quest rewards
 
 						//Update categories
-						thingDef.thingCategories?.ForEach(x => x.ThisAndChildCategoryDefs?.ToList().ForEach
-						(y => 
-							{
-								y.allChildThingDefsCached?.Remove(thingDef);
-								y.sortedChildThingDefsCached?.Remove(thingDef);
-								y.childThingDefs?.Remove(thingDef);
-							}
-						));
+						foreach (ThingCategoryDef thingCategoryDef in categoryCache)
+						{
+							thingCategoryDef.allChildThingDefsCached?.Remove(thingDef);
+							thingCategoryDef.sortedChildThingDefsCached?.Remove(thingDef);
+							thingCategoryDef.childThingDefs?.Remove(thingDef);
+						}
 
 						//If mineable...
 						thingDef.deepCommonality = 0;
@@ -619,6 +623,28 @@ namespace CherryPicker
 						break;
 					}
 
+					case nameof(SpecialThingFilterDef):
+					{
+						SpecialThingFilterDef specialThingFilterDef = def as SpecialThingFilterDef;
+						int length = DefDatabase<RecipeDef>.DefCount;
+						for (int i = 0; i < length; ++i)
+						{
+							RecipeDef recipeDef = DefDatabase<RecipeDef>.defsList[i];
+							recipeDef.fixedIngredientFilter?.specialFiltersToAllow?.Remove(specialThingFilterDef.defName);
+							recipeDef.fixedIngredientFilter?.specialFiltersToDisallow?.Remove(specialThingFilterDef.defName);
+							recipeDef.defaultIngredientFilter?.specialFiltersToAllow?.Remove(specialThingFilterDef.defName);
+							recipeDef.defaultIngredientFilter?.specialFiltersToDisallow?.Remove(specialThingFilterDef.defName);
+							recipeDef.forceHiddenSpecialFilters?.Remove(specialThingFilterDef);
+						}
+						//Update categories
+						foreach (ThingCategoryDef thingCategoryDef in categoryCache)
+						{
+							thingCategoryDef.childSpecialFilters.Remove(specialThingFilterDef);
+						}
+
+						break;
+					}
+
 					default: return false;
 				}
 			}
@@ -629,7 +655,7 @@ namespace CherryPicker
 			}
 			if (reloadRequired && Current.ProgramState == ProgramState.Playing)
 			{
-				Find.WindowStack.Add(new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog));
+				if (!Find.WindowStack.IsOpen(reloadGameMessage)) Find.WindowStack.Add(reloadGameMessage);
 			}
 			return true;
 		}
