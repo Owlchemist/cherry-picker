@@ -18,6 +18,8 @@
 	</modDependencies>
 	
 	<loadBefore>
+		<li>oskarpotocki.vanillafactionsexpanded.core</li>
 		<li>vinalx.researchpalforked</li>
+		<li>antaioz.modmedicinepatch</li>
 	</loadBefore>
 </ModMetaData>

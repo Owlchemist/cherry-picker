@@ -76,12 +76,12 @@ namespace CherryPicker
 				}
 			}
 			
-			Scribe_Collections.Look(ref removedDefs, "keys", LookMode.Value);
+			Scribe_Collections.Look(ref allRemovedDefs, "keys", LookMode.Value);
 
 			base.ExposeData();
 		}
 
-		public static HashSet<string> removedDefs;
+		public static HashSet<string> allRemovedDefs;
 		public static Vector2 scrollPos;
 		public static string filterCache;
 		public static string filter;

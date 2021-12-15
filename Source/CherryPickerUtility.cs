@@ -13,23 +13,23 @@ namespace CherryPicker
 	{
 		public static Def[] allDefs; //All defs this mod supports editting
 		public static Dictionary<Def, string> searchStringCache; //Sync'd index with allDefs
-		public static HashSet<string> workingList = new HashSet<string>(); //A copy of the user's removed defs but only the defs loaded in this modlist
+		public static HashSet<string> actualRemovedDefs = new HashSet<string>(); //This is like removedDefs except it only contains defs for this active modlist
 		public static List<string> report = new List<string>(); //Gives a console print of changes made
 		public static HashSet<Def> processedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
 		public static HashSet<Backstory> removedBackstories = new HashSet<Backstory>(); //Used to keep track of direct DB removals
-		public static ThingCategoryDef[] categoryCache;
+		public static ThingCategoryDef[] categoryCache; //Cache to avoid needing to recompile the categories each loop
 		public static bool filtered; //Tells the script the filter box is being used
+		public static bool reprocess; //Flags if the list needs to be processed again, in the event a DefList was appended
+		public static HashSet<string> reprocessDefs = new HashSet<string>(); //These are defs that need to be added to the working list next reprocess
 		public static Dialog_MessageBox reloadGameMessage = new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog);
 
 		static CherryPickerUtility()
 		{
-			rootAssembly = typeof(ThingDef).Assembly;
-
 			var timer = new System.Diagnostics.Stopwatch();
   			timer.Start();
 
 			//Check for new-users
-			if (removedDefs == null) removedDefs = new HashSet<string>();
+			if (allRemovedDefs == null) allRemovedDefs = new HashSet<string>();
 			
 			Setup();
 
@@ -44,7 +44,6 @@ namespace CherryPicker
 				string.Join(", ", report));
 			}
 		}
-
 		public static void Setup(bool secondPass = false)
 		{
 			//Fetch all our def lists across multiple categories
@@ -78,7 +77,8 @@ namespace CherryPicker
 				DefDatabase<AbilityDef>.AllDefs,
 				DefDatabase<BiomeDef>.AllDefs,
 				DefDatabase<MentalBreakDef>.AllDefs,
-				DefDatabase<SpecialThingFilterDef>.AllDefs
+				DefDatabase<SpecialThingFilterDef>.AllDefs,
+				DefDatabase<DefList>.AllDefs
 			}.SelectMany(x => x).Distinct().ToArray();
 
 			//Avoid having to recompile this list for each thingdef
@@ -100,7 +100,6 @@ namespace CherryPicker
 				}
 			}
 		}
-
 		public static void MakeLabelCache()
 		{
 			searchStringCache = new Dictionary<Def, string>();
@@ -109,24 +108,26 @@ namespace CherryPicker
 				searchStringCache.Add(def, (def?.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower());
 			}
 		}
-
-		//The worklist list differs from the removedDefs list in that it only contains defs for the current modlist.
-		//This is to prevent defs on the player's list from being messed with if they have temporarily disabled a mod.
 		public static void MakeWorkingList()
 		{
-			workingList.Clear();
-			foreach (string key in removedDefs)
+			actualRemovedDefs.Clear();
+
+			//Add any waiting defs first...
+			allRemovedDefs.AddRange(reprocessDefs);
+			reprocessDefs.Clear();
+
+			foreach (string key in allRemovedDefs)
 			{
 				Type type = key.ToType();
 				string defName = key.ToDefName();
 				if (type == typeof(Backstory))
 				{
-					if (BackstoryDatabase.allBackstories.ContainsKey(defName)) workingList.Add("Backstory/" + defName);
+					if (BackstoryDatabase.allBackstories.ContainsKey(defName) || removedBackstories.Any(x => x.identifier == defName)) actualRemovedDefs.Add("Backstory/" + defName);
 					continue;
 				} 
 
 				Def def = GetDef(defName, type);
-				if (allDefs.Contains(def)) workingList.Add(key);
+				if (allDefs.Contains(def)) actualRemovedDefs.Add(key);
 			}
 		}
 		public static void ProcessList()
@@ -134,14 +135,14 @@ namespace CherryPicker
 			report.Clear();
 			
 			//Handle new removals
-			foreach (string key in workingList)
+			foreach (string key in actualRemovedDefs)
 			{
-				removedDefs.Add(key);
+				allRemovedDefs.Add(key);
 				Type type = key.ToType();
 				string defName = key.ToDefName();
 
 				//Special handling for backstories
-				if (type == typeof(Backstory))
+				if (type == typeof(Backstory) && !removedBackstories.Any(x => x.identifier == defName))
 				{
 					if (BackstoryDatabase.allBackstories.TryGetValue(defName, out Backstory backstory)) removedBackstories.Add(backstory);
 					report.Add(BackstoryDatabase.allBackstories.Remove(defName) ? "\n - " + key : ("\n - FAILED: " + key));
@@ -150,7 +151,7 @@ namespace CherryPicker
 
 				Def def = GetDef(defName, type);
 				//Because it's a hashlist it'll only return true if this def has not been processed already
-				if (processedDefs.Add(def))
+				if (def != null && processedDefs.Add(def))
 				{
 					report.Add(RemoveDef(def) ? "\n - " + key : ("\n - FAILED: " + key));
 				}
@@ -158,18 +159,18 @@ namespace CherryPicker
 
 			//Handle def restorations or prompt restart
 			bool restart = false;
-			foreach (string key in removedDefs.ToList())
+			foreach (string key in allRemovedDefs.ToList())
 			{
 				Type type = key.ToType();
 				string defName = key.ToDefName();
 				if (type == typeof(Backstory))
 				{
 					var backstory = removedBackstories.FirstOrDefault(x => x.identifier == defName);
-					if (!workingList.Contains(key) && backstory != null)
+					if (!actualRemovedDefs.Contains(key) && backstory != null)
 					{
 						BackstoryDatabase.allBackstories.Add(defName, backstory);
 					 	removedBackstories.Remove(backstory);
-						removedDefs.Remove(key);
+						allRemovedDefs.Remove(key);
 					}
 					continue;
 				}
@@ -177,9 +178,9 @@ namespace CherryPicker
 				Def def = GetDef(defName, type);
 				restart =
 				(
-					!workingList.Contains(key) && //Is this def in the working list?
+					!actualRemovedDefs.Contains(key) && //Is this def in the working list?
 					allDefs.Contains(def) && //Is this def part of the current modlist?
-					removedDefs.Remove(key) && //Could we remove it?
+					allRemovedDefs.Remove(key) && //Could we remove it?
 					processedDefs.Remove(def) && //Mark as no longer processed
 					!TryRestoreDef(def) && //Was the def restorable or do we need to restart?
 					!restart //Make bool a one-way flip
@@ -188,7 +189,14 @@ namespace CherryPicker
 			if (restart) Find.WindowStack.Add(new Dialog_MessageBox("CherryPicker.RestartRequired".Translate(), null, null, null, null, "CherryPicker.RestartHeader".Translate(), true, null, null, WindowLayer.Dialog));
 
 			//Reorder
-			allDefs = allDefs.OrderBy(x => !workingList.Contains(x.ToKey())).ToArray();
+			allDefs = allDefs.OrderBy(x => !actualRemovedDefs.Contains(x.ToKey())).ToArray();
+
+			if (reprocess)
+			{
+				reprocess = false;
+				MakeWorkingList();
+				ProcessList();
+			}
 		}
 		public static bool RemoveDef(Def def)
 		{
@@ -215,9 +223,7 @@ namespace CherryPicker
 						}
 
 						//If mineable...
-						thingDef.deepCommonality = 0;
-						thingDef.deepCountPerCell = 0;
-						thingDef.deepCountPerPortion = 0;
+						thingDef.deepCommonality = thingDef.deepCountPerCell = thingDef.deepCountPerPortion = 0;
 						thingDef.deepLumpSizeRange = IntRange.zero;
 
 						//0'ing out the nutrition removes food from filters
@@ -230,7 +236,7 @@ namespace CherryPicker
 							//List of lists
 							foreach (List<ThingDefStyle> styleCategoryDef in styleCategoryDefs2)
 							{
-								var styleDefWorkingList = styleCategoryDef.ToList();
+								List<ThingDefStyle> styleDefWorkingList = styleCategoryDef.ToList();
 								//Go through this list
 								foreach (ThingDefStyle thingDefStyles in styleCategoryDef)
 								{
@@ -300,6 +306,7 @@ namespace CherryPicker
 							}
 
 							//Remove from recipe ingredients
+							thingDef.recipeMaker?.recipeUsers.Clear();
 							int length = DefDatabase<RecipeDef>.DefCount;
 							for (int i = 0; i < length; ++i)
 							{
@@ -332,41 +339,53 @@ namespace CherryPicker
 							//Makes this stuff material not show up in generated items
 							if (thingDef.stuffProps != null) thingDef.stuffProps.commonality = 0;
 
-							thingDef.recipeMaker?.recipeUsers.Clear();
-							//Is this item equipment?
-							if (thingDef.thingClass == typeof(Apparel) || thingDef.equipmentType == EquipmentType.Primary)
+							//Process pawnkinds that reference this item
+							foreach (PawnKindDef pawnKindDef in DefDatabase<PawnKindDef>.AllDefsListForReading)
 							{
-								//Apparel?
-								if (thingDef.apparel != null)
-								{
-									reloadRequired = true;
+								pawnKindDef.apparelRequired?.Remove(thingDef);
+								pawnKindDef.techHediffsRequired?.Remove(thingDef);
+							}
+							
+							//If apparel
+							if (thingDef.thingClass == typeof(Apparel) && thingDef.apparel != null)
+							{
+								reloadRequired = true;
 
-									thingDef.apparel.tags?.Clear();
-									thingDef.apparel.defaultOutfitTags?.Clear();
-									thingDef.apparel.canBeDesiredForIdeo = false;
-									thingDef.apparel.ideoDesireAllowedFactionCategoryTags?.Clear();
-									thingDef.apparel.ideoDesireDisallowedFactionCategoryTags?.Clear();
-								}
-								thingDef.weaponTags?.Clear();
-								DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => x.apparelRequired?.Remove(thingDef));
-								thingDef.techHediffsTags?.Clear();
-								DefDatabase<PawnKindDef>.AllDefsListForReading.ForEach(x => x.techHediffsRequired?.Remove(thingDef));
+								thingDef.apparel.tags?.Clear();
+								thingDef.apparel.defaultOutfitTags?.Clear();
+								thingDef.apparel.canBeDesiredForIdeo = false;
+								thingDef.apparel.ideoDesireAllowedFactionCategoryTags?.Clear();
+								thingDef.apparel.ideoDesireDisallowedFactionCategoryTags?.Clear();
 
-								//Some scripts filter-select defs by their components. This should help exclude them, but some comps are special and white-listed
+								//Some apparrel have special comps which filters target to locate. Remove except for some whitelisted comps which break things if removed
 								thingDef.comps.RemoveAll(x => x.GetType() != typeof(CompProperties_Drug));
 							}
+
+							//If weapon
+							else if (thingDef.equipmentType == EquipmentType.Primary)
+							{
+								thingDef.weaponTags?.Clear();
+								thingDef.weaponClasses?.Clear();
+							}
+
+							//If implant
+							thingDef.techHediffsTags?.Clear();
 						}
 						//Plants
 						else if (thingDef.category == ThingCategory.Plant)
 						{
-							DefDatabase<BiomeDef>.AllDefsListForReading.ForEach
-							(x =>
-								{
-									x.wildPlants?.RemoveAll(y => y.plant == thingDef);
-									x.cachedWildPlants?.RemoveAll(y => y == thingDef);
-									x.cachedPlantCommonalities?.RemoveAll(y => y.Key == thingDef);
-								}
-							);
+							if (thingDef.plant != null)
+							{
+								thingDef.plant.sowTags.Clear(); //Farming UI
+								thingDef.plant.cavePlant = false; //Mushroom filters
+								thingDef.plant.wildBiomes?.Clear();
+							}
+							foreach (var biomeDef in DefDatabase<BiomeDef>.AllDefsListForReading)
+							{
+								biomeDef.wildPlants?.RemoveAll(y => y.plant == thingDef);
+								biomeDef.cachedWildPlants?.Remove(thingDef);
+								biomeDef.cachedPlantCommonalities?.Remove(thingDef);
+							}
 						}
 						//Pawns and animals
 						else if (thingDef.category == ThingCategory.Pawn)
@@ -645,6 +664,13 @@ namespace CherryPicker
 						break;
 					}
 
+					case nameof(DefList):
+					{
+						reprocess = true;
+						reprocessDefs.AddRange(((DefList)def).defs);
+						break;
+					}
+
 					default: return false;
 				}
 			}
@@ -705,6 +731,13 @@ namespace CherryPicker
 					{
 						((BiomeDef)def).implemented = true;
 						break;
+					}
+
+					case nameof(DefList):
+					{
+						reprocess = true;
+						allRemovedDefs.RemoveWhere(x => (((DefList)def).defs.Contains(x)));
+						return false;
 					}
 
 					default: return false;

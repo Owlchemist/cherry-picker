@@ -29,7 +29,7 @@ namespace CherryPicker
 				}
 				
 			}
-			foreach (var backstory in removedBackstories.Concat(BackstoryDatabase.allBackstories.Values))
+			foreach (Backstory backstory in removedBackstories.Concat(BackstoryDatabase.allBackstories.Values))
 			{
 				if (!filtered || ("backstory" + backstory.title).Contains(filter))
 				{
@@ -45,15 +45,17 @@ namespace CherryPicker
 		{
 			//Prepare key
 			string key = def.ToKey();
+			string type = key.ToTypeString();
 
 			//Determine checkbox status...
-			bool checkOn = !workingList?.Contains(key) ?? false;
-			//Draw...
+			bool checkOn = !actualRemovedDefs?.Contains(key) ?? false;
+			
+			//Fetch bounding rect
 			Rect rect = options.GetRect(lineHeight);
 			rect.y = cellPosition;
 
 			//Label
-			string dataString = def.GetType().Name + " :: " + def.modContentPack?.Name + " :: " + def.defName;
+			string dataString = type + " :: " + def.modContentPack?.Name + " :: " + def.defName;
 
 			//Actually draw the line item
 			if (options.BoundingRectCached == null || rect.Overlaps(options.BoundingRectCached.Value))
@@ -67,12 +69,15 @@ namespace CherryPicker
 			Widgets.DrawHighlightIfMouseover(rect);
 
 			//Tooltip
-			TooltipHandler.TipRegion(rect, dataString + "\n\n" + def.description);
+			TooltipHandler.TipRegion(rect, dataString + "\n\n" + (type == nameof(DefList) ? string.Join(def.description + "\n", ((DefList)def).defs) : def.description));
 			
 			//Add to working list if missing
-			if (!checkOn && !workingList.Contains(key)) workingList.Add(key);
+			bool flag = false;
+			if (!checkOn && (flag = !actualRemovedDefs.Contains(key))) actualRemovedDefs.Add(key);
 			//Remove from working list
-			else if (checkOn && workingList.Contains(key)) workingList.Remove(key);
+			else if (checkOn && (flag = actualRemovedDefs.Contains(key))) actualRemovedDefs.Remove(key);
+			//Immediately process the list if this is a deflist
+			if (flag && type == nameof(DefList)) LoadedModManager.GetMod<Mod_CherryPicker>().WriteSettings();
 		}
 
 		//Todo: refactor DrawListItem and DrawBSListItem to combine more elegantly
@@ -82,7 +87,7 @@ namespace CherryPicker
 			string key = "Backstory/" + def.identifier;
 
 			//Determine checkbox status...
-			bool checkOn = !workingList?.Contains(key) ?? false;
+			bool checkOn = !actualRemovedDefs?.Contains(key) ?? false;
 			//Draw...
 			Rect rect = options.GetRect(lineHeight);
 			rect.y = cellPosition;
@@ -105,9 +110,9 @@ namespace CherryPicker
 			TooltipHandler.TipRegion(rect, dataString + "\n\n" + def.descTranslated);
 			
 			//Add to working list if missing
-			if (!checkOn && !workingList.Contains(key)) workingList.Add(key);
+			if (!checkOn && !actualRemovedDefs.Contains(key)) actualRemovedDefs.Add(key);
 			//Remove from working list
-			else if (checkOn && workingList.Contains(key)) workingList.Remove(key);
+			else if (checkOn && actualRemovedDefs.Contains(key)) actualRemovedDefs.Remove(key);
 		}
 
 		static void CheckboxLabeled(Rect rect, string data, string label, ref bool checkOn, Def def)
