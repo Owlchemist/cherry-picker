@@ -51,7 +51,7 @@ namespace CherryPicker
 			{
 				processedDefs,
 				DefDatabase<ThingDef>.AllDefsListForReading.Where
-					(x => !x.IsBlueprint && !x.IsFrame && !x.IsCorpse && !x.isUnfinishedThing &&
+					(x => !x.IsBlueprint && !x.IsFrame && !x.isUnfinishedThing &&
 					(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
 				DefDatabase<TerrainDef>.AllDefs,
 				DefDatabase<RecipeDef>.AllDefs,
@@ -370,6 +370,19 @@ namespace CherryPicker
 
 							//If implant
 							thingDef.techHediffsTags?.Clear();
+
+							//Some mods filter onto their defs using an extension. Should be relatively safe to remove these without any serious errors.
+							thingDef.modExtensions?.Clear();
+
+							//If drug
+							if (thingDef.IsDrug)
+							{
+								thingDef.ingestible.drugCategory = DrugCategory.None;
+								foreach (DrugPolicyDef drugPolicyDef in DefDatabase<DrugPolicyDef>.AllDefsListForReading)
+								{
+									drugPolicyDef.entries?.RemoveAll(x => x.drug == thingDef);
+								}
+							}
 						}
 						//Plants
 						else if (thingDef.category == ThingCategory.Plant)
