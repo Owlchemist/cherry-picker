@@ -1,6 +1,8 @@
 using Verse;
 using System;
 using RimWorld;
+using System.Collections.Generic;
+using System.Reflection;
 using static CherryPicker.CherryPickerUtility;
  
 namespace CherryPicker
@@ -8,13 +10,13 @@ namespace CherryPicker
 	[StaticConstructorOnStartup]
     internal static class DefUtility
 	{
-		public static System.Reflection.Assembly rootAssembly;
-		public static System.Reflection.Assembly thisAssembly;
+		public static Assembly rootAssembly;
+		public static Dictionary<string, Type> typeCache = new Dictionary<string, Type>();
 
 		static DefUtility()
 		{
 			rootAssembly = typeof(ThingDef).Assembly;
-			thisAssembly = typeof(DefList).Assembly;
+			typeCache.Add("DefList", typeof(DefList));
 		}
 
 		public static string ToKey(this Def def)
@@ -25,9 +27,21 @@ namespace CherryPicker
 		{
 			return def.Split('/')[1];
 		}
-		public static Type ToType(this string def)
+		public static Type ToType(this string key)
 		{
-			return rootAssembly.GetType("Verse." + def.Split('/')[0]) ?? rootAssembly.GetType("RimWorld." + def.Split('/')[0]) ?? thisAssembly.GetType("CherryPicker." + def.Split('/')[0]);
+			string typeName = key.Split('/')[0];
+
+			//Fast handling for vanilla types
+			Type type;
+			type = rootAssembly.GetType("Verse." + typeName) ?? rootAssembly.GetType("RimWorld." + typeName);
+			if (type != null) return type;
+			
+			//Check the cache for modded types
+			if (typeCache.TryGetValue(typeName, out type))
+			{
+				return type;
+			}
+			return null;
 		}
 		public static string ToTypeString(this string def)
 		{
@@ -39,7 +53,7 @@ namespace CherryPicker
 		}
 		public static Def GetDef(string defName, Type type)
 		{
-			if (defName.NullOrEmpty() || type == null || type == typeof(Backstory)) return null;
+			if (defName.NullOrEmpty() || type == null) return null;
 
 			Def def = (Def)GenGeneric.InvokeStaticMethodOnGenericType(typeof(DefDatabase<>), type, nameof(DefDatabase<Def>.GetNamed), defName, false);
 			if (def == null)

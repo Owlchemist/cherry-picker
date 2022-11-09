@@ -29,6 +29,7 @@ namespace CherryPicker
 				}
 				
 			}
+			/*
 			foreach (Backstory backstory in removedBackstories.Concat(BackstoryDatabase.allBackstories.Values))
 			{
 				if (!filtered || ("backstory" + backstory.title).Contains(filter))
@@ -39,6 +40,7 @@ namespace CherryPicker
 					if (cellPosition > scrollPos.y - container.height && cellPosition < scrollPos.y + container.height) DrawBSListItem(options, backstory);
 				}
 			}
+			*/
 		}
 
 		public static void DrawListItem(Listing_Standard options, Def def)
@@ -81,6 +83,7 @@ namespace CherryPicker
 		}
 
 		//Todo: refactor DrawListItem and DrawBSListItem to combine more elegantly
+		/*
 		public static void DrawBSListItem(Listing_Standard options, Backstory def)
 		{
 			//Prepare key
@@ -114,6 +117,7 @@ namespace CherryPicker
 			//Remove from working list
 			else if (checkOn && actualRemovedDefs.Contains(key)) actualRemovedDefs.Remove(key);
 		}
+		*/
 
 		static void CheckboxLabeled(Rect rect, string data, string label, ref bool checkOn, Def def)
 		{

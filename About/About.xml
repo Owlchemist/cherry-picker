@@ -22,4 +22,7 @@
 		<li>vinalx.researchpalforked</li>
 		<li>antaioz.modmedicinepatch</li>
 	</loadBefore>
+	<loadAfter>
+		<li>mlie.clothingsorter</li>
+	</loadAfter>
 </ModMetaData>

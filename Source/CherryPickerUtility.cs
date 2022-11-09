@@ -16,12 +16,18 @@ namespace CherryPicker
 		public static HashSet<string> actualRemovedDefs = new HashSet<string>(); //This is like removedDefs except it only contains defs for this active modlist
 		public static List<string> report = new List<string>(); //Gives a console print of changes made
 		public static HashSet<Def> processedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
-		public static HashSet<Backstory> removedBackstories = new HashSet<Backstory>(); //Used to keep track of direct DB removals
-		public static ThingCategoryDef[] categoryCache; //Cache to avoid needing to recompile the categories each loop
+		//public static HashSet<Backstory> removedBackstories = new HashSet<Backstory>(); //Used to keep track of direct DB removals
 		public static bool filtered; //Tells the script the filter box is being used
 		public static bool reprocess; //Flags if the list needs to be processed again, in the event a DefList was appended
+		static bool processDesignators, processBodyTypes, processXenotypes;
 		public static HashSet<string> reprocessDefs = new HashSet<string>(); //These are defs that need to be added to the working list next reprocess
 		public static Dialog_MessageBox reloadGameMessage = new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog);
+		static SimpleCurve zeroCurve = new SimpleCurve() { { new CurvePoint(0, 0), true } };
+		//When comps are removed from items, exempt these
+		static HashSet<Type> compWhitelist = new HashSet<Type>()
+		{
+			typeof(CompProperties_Drug), typeof(CompProperties_Styleable)
+		};
 
 		static CherryPickerUtility()
 		{
@@ -46,61 +52,100 @@ namespace CherryPicker
 		}
 		public static void Setup(bool secondPass = false)
 		{
-			//Fetch all our def lists across multiple categories
-			allDefs = new IEnumerable<Def>[]
+			try
 			{
-				processedDefs,
-				DefDatabase<ThingDef>.AllDefsListForReading.Where
-					(x => !x.IsBlueprint && !x.IsFrame && !x.isUnfinishedThing &&
-					(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
-				DefDatabase<TerrainDef>.AllDefs,
-				DefDatabase<RecipeDef>.AllDefs,
-				DefDatabase<TraitDef>.AllDefs,
-				DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(x => DefDatabase<ResearchProjectDef>.AllDefsListForReading.
-								Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true))),
-				DefDatabase<DesignationCategoryDef>.AllDefs,
-				DefDatabase<ThingStyleDef>.AllDefs,
-				DefDatabase<QuestScriptDef>.AllDefsListForReading.Where(x => !DefDatabase<IncidentDef>.AllDefsListForReading.Any(y => y.questScriptDef == x)),
-				DefDatabase<IncidentDef>.AllDefs,
-				DefDatabase<HediffDef>.AllDefs,
-				DefDatabase<ThoughtDef>.AllDefs,
-				DefDatabase<TraderKindDef>.AllDefs,
-				DefDatabase<GatheringDef>.AllDefs,
-				DefDatabase<WorkTypeDef>.AllDefs,
-				DefDatabase<MemeDef>.AllDefs,
-				DefDatabase<PreceptDef>.AllDefs,
-				DefDatabase<RitualPatternDef>.AllDefs,
-				DefDatabase<HairDef>.AllDefs,
-				DefDatabase<BeardDef>.AllDefs,
-				DefDatabase<RaidStrategyDef>.AllDefs,
-				DefDatabase<MainButtonDef>.AllDefs,
-				DefDatabase<AbilityDef>.AllDefs,
-				DefDatabase<BiomeDef>.AllDefs,
-				DefDatabase<MentalBreakDef>.AllDefs,
-				DefDatabase<SpecialThingFilterDef>.AllDefs,
-				DefDatabase<DefList>.AllDefs
-			}.SelectMany(x => x).Distinct().ToArray();
-
-			//Avoid having to recompile this list for each thingdef
-			categoryCache = DefDatabase<ThingCategoryDef>.AllDefsListForReading.SelectMany(x => x.ThisAndChildCategoryDefs ?? Enumerable.Empty<ThingCategoryDef>()).ToArray();
-
-			//Process lists
-			MakeLabelCache();
-			MakeWorkingList();
-			ProcessList();
-
-			if (secondPass)
-			{
-				//Give report
-				if (report.Count > 0)
+				//Fetch all our def lists across multiple categories
+				allDefs = new IEnumerable<Def>[]
 				{
-					Log.Message("[Cherry Picker] These dynamically generated defs were also processed" + 
-					(report.Any(x => x.Contains("FAILED:")) ? " <color=red>with " + report.Count(x => x.Contains("FAILED:")).ToString() + " errors</color>" : "") + ": " + 
-					string.Join(", ", report));
-				}
+					processedDefs,
+					DefDatabase<ThingDef>.AllDefsListForReading.Where(x =>
+						!x.IsBlueprint && !x.IsFrame && !x.isUnfinishedThing &&
+						(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
+					DefDatabase<TerrainDef>.AllDefs,
+					DefDatabase<RecipeDef>.AllDefs,
+					DefDatabase<TraitDef>.AllDefs,
+					DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(x => DefDatabase<ResearchProjectDef>.AllDefsListForReading.
+									Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true))),
+					DefDatabase<DesignationCategoryDef>.AllDefs,
+					DefDatabase<ThingStyleDef>.AllDefs,
+					DefDatabase<QuestScriptDef>.AllDefsListForReading.Where(x => !DefDatabase<IncidentDef>.AllDefsListForReading.Any(y => y.questScriptDef == x)),
+					DefDatabase<IncidentDef>.AllDefs,
+					DefDatabase<HediffDef>.AllDefs,
+					DefDatabase<ThoughtDef>.AllDefs,
+					DefDatabase<TraderKindDef>.AllDefs,
+					DefDatabase<GatheringDef>.AllDefs,
+					DefDatabase<WorkTypeDef>.AllDefs,
+					DefDatabase<MemeDef>.AllDefs,
+					DefDatabase<PreceptDef>.AllDefs,
+					DefDatabase<RitualPatternDef>.AllDefs,
+					DefDatabase<HairDef>.AllDefs,
+					DefDatabase<BeardDef>.AllDefs,
+					DefDatabase<RaidStrategyDef>.AllDefs,
+					DefDatabase<MainButtonDef>.AllDefs,
+					DefDatabase<AbilityDef>.AllDefs,
+					DefDatabase<BiomeDef>.AllDefs,
+					DefDatabase<MentalBreakDef>.AllDefs,
+					DefDatabase<SpecialThingFilterDef>.AllDefs,
+					DefDatabase<PawnKindDef>.AllDefs.Where(x => x != PawnKindDefOf.Colonist),
+					DefDatabase<GenStepDef>.AllDefs,
+					DefDatabase<InspirationDef>.AllDefs,
+					DefDatabase<StorytellerDef>.AllDefs,
+					DefDatabase<ScenarioDef>.AllDefs,
+					DefDatabase<DesignationDef>.AllDefs,
+					DefDatabase<PawnsArrivalModeDef>.AllDefs,
+					DefDatabase<GeneDef>.AllDefs,
+					DefDatabase<XenotypeDef>.AllDefs,
+					DefDatabase<BodyTypeDef>.AllDefsListForReading.Where(x => x != BodyTypeDefOf.Male && x != BodyTypeDefOf.Female),
+					DefDatabase<FactionDef>.AllDefsListForReading.Where(x => x.maxConfigurableAtWorldCreation > 0),
+					GetDefFromMod(packageID: "vanillaexpanded.vfea", assemblyName: "VFEAncients", nameSpace: "VFEAncients", typeName: "PowerDef"),
+					DefDatabase<BackstoryDef>.AllDefs,
+					DefDatabase<WeatherDef>.AllDefs,
+					DefDatabase<ScatterableDef>.AllDefs,
+					DefDatabase<DefList>.AllDefs
+				}.SelectMany(x => x).Distinct().ToArray();
+
+				//Process lists
+				MakeLabelCache();
+				MakeWorkingList();
+				ProcessList();
+
+				if (secondPass)
+				{
+					//Give report
+					if (report.Count > 0)
+					{
+						Log.Message("[Cherry Picker] These dynamically generated defs were also processed" + 
+						(report.Any(x => x.Contains("FAILED:")) ? " <color=red>with " + report.Count(x => x.Contains("FAILED:")).ToString() + " errors</color>" : "") + ": " + 
+						string.Join(", ", report));
+					}
+				}	 
+			}
+			catch (Exception ex)
+			{                
+				Log.Error("[Cherry Picker] Error constructing master def list...\n" + ex);
+				return;
 			}
 		}
-		public static void MakeLabelCache()
+		static IEnumerable<Def> GetDefFromMod(string packageID, string assemblyName, string nameSpace, string typeName)
+		{
+			ModContentPack mod = LoadedModManager.RunningMods.FirstOrDefault(x => x.PackageId == packageID);
+			if (mod != null) 
+			{
+				Type type = mod.assemblies.loadedAssemblies
+                        .FirstOrDefault(a => a.GetName().Name == assemblyName)?.GetType(nameSpace + "." + typeName);
+
+				if (type != null)
+				{
+					if (!typeCache.ContainsKey(typeName)) typeCache.Add(typeName, type);
+					return (IEnumerable<Def>)GenGeneric.InvokeStaticMethodOnGenericType(typeof(DefDatabase<>), type, "get_AllDefs");
+				}
+				else Log.Warning("[Cherry Picker] Could not find " + nameSpace+typeName);
+			}
+			return Enumerable.Empty<Def>();
+		}
+
+
+		static void MakeLabelCache()
 		{
 			searchStringCache = new Dictionary<Def, string>();
 			foreach (var def in allDefs)
@@ -108,7 +153,7 @@ namespace CherryPicker
 				searchStringCache.Add(def, (def?.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower());
 			}
 		}
-		public static void MakeWorkingList()
+		static void MakeWorkingList()
 		{
 			actualRemovedDefs.Clear();
 
@@ -120,11 +165,13 @@ namespace CherryPicker
 			{
 				Type type = key.ToType();
 				string defName = key.ToDefName();
+				/*
 				if (type == typeof(Backstory))
 				{
 					if (BackstoryDatabase.allBackstories.ContainsKey(defName) || removedBackstories.Any(x => x.identifier == defName)) actualRemovedDefs.Add("Backstory/" + defName);
 					continue;
-				} 
+				}
+				*/
 
 				Def def = GetDef(defName, type);
 				if (allDefs.Contains(def)) actualRemovedDefs.Add(key);
@@ -142,12 +189,14 @@ namespace CherryPicker
 				string defName = key.ToDefName();
 
 				//Special handling for backstories
+				/*
 				if (type == typeof(Backstory) && !removedBackstories.Any(x => x.identifier == defName))
 				{
 					if (BackstoryDatabase.allBackstories.TryGetValue(defName, out Backstory backstory)) removedBackstories.Add(backstory);
 					report.Add(BackstoryDatabase.allBackstories.Remove(defName) ? "\n - " + key : ("\n - FAILED: " + key));
 					continue;
 				}
+				*/
 
 				Def def = GetDef(defName, type);
 				//Because it's a hashlist it'll only return true if this def has not been processed already
@@ -157,12 +206,17 @@ namespace CherryPicker
 				}
 			}
 
+			//Consolidated associated loops
+			PostProcess();
+
 			//Handle def restorations or prompt restart
 			bool restart = false;
 			foreach (string key in allRemovedDefs.ToList())
 			{
 				Type type = key.ToType();
 				string defName = key.ToDefName();
+
+				/*
 				if (type == typeof(Backstory))
 				{
 					var backstory = removedBackstories.FirstOrDefault(x => x.identifier == defName);
@@ -174,6 +228,7 @@ namespace CherryPicker
 					}
 					continue;
 				}
+				*/
 
 				Def def = GetDef(defName, type);
 				restart =
@@ -198,7 +253,7 @@ namespace CherryPicker
 				ProcessList();
 			}
 		}
-		public static bool RemoveDef(Def def)
+		static bool RemoveDef(Def def)
 		{
 			bool reloadRequired = false;
 
@@ -214,20 +269,16 @@ namespace CherryPicker
 						thingDef.thingCategories?.Clear(); //Filters
 						thingDef.thingSetMakerTags?.Clear(); //Quest rewards
 
-						//Update categories
-						foreach (ThingCategoryDef thingCategoryDef in categoryCache)
-						{
-							thingCategoryDef.allChildThingDefsCached?.Remove(thingDef);
-							thingCategoryDef.sortedChildThingDefsCached?.Remove(thingDef);
-							thingCategoryDef.childThingDefs?.Remove(thingDef);
-						}
-
 						//If mineable...
 						thingDef.deepCommonality = thingDef.deepCountPerCell = thingDef.deepCountPerPortion = 0;
 						thingDef.deepLumpSizeRange = IntRange.zero;
 
 						//0'ing out the nutrition removes food from filters
-						if (thingDef.ingestible != null) thingDef.SetStatBaseValue(StatDefOf.Nutrition,0);
+						if (thingDef.ingestible != null) 
+						{
+							thingDef.SetStatBaseValue(StatDefOf.Nutrition, 0);
+							thingDef.ingestible.preferability = FoodPreferability.NeverForNutrition;
+						}
 						
 						//Remove styles (Ideology)
 						if (ModLister.IdeologyInstalled)
@@ -261,6 +312,8 @@ namespace CherryPicker
 							thingDef.minifiedDef = null; //Removes from storage filters
 							thingDef.researchPrerequisites = null; //Removes from research UI
 
+							thingDef.building.claimable = false; //Possibly only needed to work better with Minify Everything
+
 							//If mineable
 							if (thingDef.building != null)
 							{
@@ -268,83 +321,18 @@ namespace CherryPicker
 								thingDef.building.mineableScatterLumpSizeRange = IntRange.zero;
 								thingDef.building.isNaturalRock = false;
 							}
-
-							//Check if used for runes/junk on map gen
-							DefDatabase<GenStepDef>.AllDefsListForReading.ForEach
-							(x =>
-								{
-									if (x.genStep.GetType() == typeof(GenStep_ScatterGroup))
-									{
-										x.genStep.ChangeType<GenStep_ScatterGroup>().groups.ForEach(y => y.things.RemoveAll(z => z.thing == thingDef));
-									}
-									else if (x.genStep.GetType() == typeof(GenStep_ScatterThings) && x.genStep.ChangeType<GenStep_ScatterThings>().thingDef == thingDef)
-									{
-										x.genStep.ChangeType<GenStep_ScatterThings>().clusterSize = 0;
-									}
-								}
-							);
-
-							//Is this building used for a ideology precept?
-							if (ModLister.IdeologyInstalled)
-							{
-								DefDatabase<PreceptDef>.AllDefsListForReading.ForEach
-								(x =>
-									{
-										x.buildingDefChances?.RemoveAll(x => x.def == thingDef);
-									}
-								);
-							}
 						}
 						//Items
 						else if (thingDef.category == ThingCategory.Item)
 						{
-							//Scenario starting items
-							foreach (ScenarioDef scenarioDef in DefDatabase<ScenarioDef>.AllDefsListForReading)
-							{
-								scenarioDef.scenario.parts?.RemoveAll(y => y.GetType() == typeof(ScenPart_StartingThing_Defined) && 
-									y.ChangeType<ScenPart_StartingThing_Defined>().thingDef == thingDef);
-							}
-
 							//Remove from recipe ingredients
-							thingDef.recipeMaker?.recipeUsers.Clear();
-							int length = DefDatabase<RecipeDef>.DefCount;
-							for (int i = 0; i < length; ++i)
-							{
-								RecipeDef recipeDef = DefDatabase<RecipeDef>.defsList[i];
-								foreach (IngredientCount ingredientCount in recipeDef.ingredients ?? Enumerable.Empty<IngredientCount>())
-								{
-									ingredientCount.filter?.thingDefs?.Remove(thingDef);
-									ingredientCount.filter?.allowedDefs?.Remove(thingDef);
-								}
-
-								recipeDef.fixedIngredientFilter?.thingDefs?.Remove(thingDef);
-								recipeDef.fixedIngredientFilter?.allowedDefs?.Remove(thingDef);
-								recipeDef.defaultIngredientFilter?.thingDefs?.Remove(thingDef);
-								recipeDef.defaultIngredientFilter?.allowedDefs?.Remove(thingDef);
-							}
-
-							//Butchery and Costlists
-							length = DefDatabase<ThingDef>.DefCount;
-							for (int i = 0; i < length; ++i)
-							{
-								ThingDef x = DefDatabase<ThingDef>.defsList[i];
-								x.costList?.RemoveAll(y => y.thingDef == thingDef);
-								x.costListForDifficulty?.costList?.RemoveAll(y => y.thingDef == thingDef);
-								x.butcherProducts?.RemoveAll(z => z.thingDef == thingDef);
-							}
+							thingDef.recipeMaker?.recipeUsers?.Clear();
 
 							//If medicine...
 							thingDef.statBases?.RemoveAll(x => x.stat == StatDefOf.MedicalPotency);
 
 							//Makes this stuff material not show up in generated items
 							if (thingDef.stuffProps != null) thingDef.stuffProps.commonality = 0;
-
-							//Process pawnkinds that reference this item
-							foreach (PawnKindDef pawnKindDef in DefDatabase<PawnKindDef>.AllDefsListForReading)
-							{
-								pawnKindDef.apparelRequired?.Remove(thingDef);
-								pawnKindDef.techHediffsRequired?.Remove(thingDef);
-							}
 							
 							//If apparel
 							if (thingDef.thingClass == typeof(Apparel) && thingDef.apparel != null)
@@ -358,7 +346,7 @@ namespace CherryPicker
 								thingDef.apparel.ideoDesireDisallowedFactionCategoryTags?.Clear();
 
 								//Some apparrel have special comps which filters target to locate. Remove except for some whitelisted comps which break things if removed
-								thingDef.comps.RemoveAll(x => x.GetType() != typeof(CompProperties_Drug));
+								thingDef.comps.RemoveAll(x => !compWhitelist.Contains(x.GetType()));
 							}
 
 							//If weapon
@@ -371,8 +359,9 @@ namespace CherryPicker
 							//If implant
 							thingDef.techHediffsTags?.Clear();
 
-							//Some mods filter onto their defs using an extension. Should be relatively safe to remove these without any serious errors.
-							thingDef.modExtensions?.Clear();
+							//Some mods filter onto their defs using an extension. For now, their removal will operate through a whitelist until a better solution is written
+							//Seed = SeedsPlease: Lite
+							thingDef.modExtensions?.RemoveAll(x => x.GetType().Name == "Seed");
 
 							//If drug
 							if (thingDef.IsDrug)
@@ -385,20 +374,12 @@ namespace CherryPicker
 							}
 						}
 						//Plants
-						else if (thingDef.category == ThingCategory.Plant)
+						else if (thingDef.category == ThingCategory.Plant && thingDef.plant != null)
 						{
-							if (thingDef.plant != null)
-							{
-								thingDef.plant.sowTags.Clear(); //Farming UI
-								thingDef.plant.cavePlant = false; //Mushroom filters
-								thingDef.plant.wildBiomes?.Clear();
-							}
-							foreach (var biomeDef in DefDatabase<BiomeDef>.AllDefsListForReading)
-							{
-								biomeDef.wildPlants?.RemoveAll(y => y.plant == thingDef);
-								biomeDef.cachedWildPlants?.Remove(thingDef);
-								biomeDef.cachedPlantCommonalities?.Remove(thingDef);
-							}
+							thingDef.plant.sowTags?.Clear(); //Farming UI
+							thingDef.plant.cavePlant = false; //Mushroom filters
+							thingDef.plant.wildBiomes?.Clear();
+							//thingDef.plant.purpose = PlantPurpose.Misc; //Remove from some filters
 						}
 						//Pawns and animals
 						else if (thingDef.category == ThingCategory.Pawn)
@@ -410,41 +391,26 @@ namespace CherryPicker
 							//For farm animal joins event
 							thingDef.race.wildness = 1f;
 
-							//Omits from manhunter event
-							foreach (var pawnKindDef in DefDatabase<PawnKindDef>.AllDefsListForReading)
-							{
-								if (pawnKindDef.race.defName == def.defName)
-								{
-									pawnKindDef.canArriveManhunter = false;
-									pawnKindDef.combatPower = float.MaxValue; //Makes too expensive to ever buy with points
-									pawnKindDef.isGoodBreacher = false; //Special checks
-								}
-							}
-							
-
 							/*
 							if (thingDef.race.animalType == AnimalType.Dryad)
 							{
 								
 							}
 							*/
-							
-							//Prevent biome spawning
-							DefDatabase<BiomeDef>.AllDefsListForReading.ForEach
-							(x =>
-								{
-									x.wildAnimals?.ForEach(x => {if (x.animal?.race == thingDef) x.commonality = 0 ;} );
-								}
-							);
 						}
 						break;
 					}
 				
 					case nameof(TerrainDef):
 					{
-						var originalDesignationCategory = ((TerrainDef)def).designationCategory;
-						((TerrainDef)def).designationCategory = null; //Hide from architect menus
+						TerrainDef terrainDef = def as TerrainDef;
+
+						//Hide from architect menus
+						DesignationCategoryDef originalDesignationCategory = terrainDef.designationCategory;
+						terrainDef.designationCategory = null;
 						originalDesignationCategory?.ResolveReferences();
+
+						terrainDef.costList?.Clear(); //Prevent from map spawning
 						break;
 					}
 				
@@ -452,23 +418,16 @@ namespace CherryPicker
 					{
 						RecipeDef recipeDef = def as RecipeDef;
 					
-						recipeDef.recipeUsers?.ForEach
-						(x => 
-							{
-								x.recipes?.Remove(recipeDef);
-								x.allRecipesCached?.Remove(recipeDef);
-							}
-						);
-						int length = DefDatabase<ThingDef>.DefCount;
-						for (int i = 0; i < length; ++i)
+						foreach (ThingDef x in recipeDef.recipeUsers ?? Enumerable.Empty<ThingDef>())
 						{
-							ThingDef x = DefDatabase<ThingDef>.defsList[i];
-							x.allRecipesCached?.Remove(recipeDef);
 							x.recipes?.Remove(recipeDef);
+							x.allRecipesCached?.Remove(recipeDef);
 						}
+						
 						recipeDef.requiredGiverWorkType = null;
 						recipeDef.researchPrerequisite = null;
 						recipeDef.researchPrerequisites?.Clear();
+						//Remove from database too. Even though it's removed, its reference may still persist in other cached collections
 						DefDatabase<RecipeDef>.Remove(recipeDef);
 						break;
 					}
@@ -486,10 +445,12 @@ namespace CherryPicker
 						//Do any other research project use as a prereq?
 						foreach (ResearchProjectDef entry in DefDatabase<ResearchProjectDef>.AllDefsListForReading)
 						{
+							//Subsitute prereqs. Take the removed def's prereqs and apply it to any descendant defs
 							if (entry.prerequisites?.Contains(researchProjectDef) ?? false)
 							{
 								entry.prerequisites.AddRange(researchProjectDef.prerequisites?.Where(x => !entry.prerequisites.Contains(x)) ?? Enumerable.Empty<ResearchProjectDef>());
 							}
+							//Do the same for hidden prereqs
 							if (entry.hiddenPrerequisites?.Contains(researchProjectDef) ?? false)
 							{
 								entry.hiddenPrerequisites.AddRange(researchProjectDef.hiddenPrerequisites?.Where(x => !entry.prerequisites.Contains(x)) ?? Enumerable.Empty<ResearchProjectDef>());
@@ -504,14 +465,6 @@ namespace CherryPicker
 					case nameof(DesignationCategoryDef):
 					{
 						DefDatabase<DesignationCategoryDef>.Remove(def as DesignationCategoryDef);
-						
-						int length = DefDatabase<ThingDef>.DefCount;
-						for (int i = 0; i < length; ++i)
-						{
-							ThingDef x = DefDatabase<ThingDef>.defsList[i];
-							if (x.designationCategory == def as DesignationCategoryDef) x.designationCategory = null;
-						}
-
 						if (Current.ProgramState == ProgramState.Playing) reloadRequired = true;
 						break;
 					}
@@ -519,9 +472,10 @@ namespace CherryPicker
 					case nameof(ThingStyleDef):
 					{
 						ThingStyleDef thingStyleDef = def as ThingStyleDef;
-						var styleCategoryDefs = DefDatabase<StyleCategoryDef>.AllDefsListForReading.Where(x => x.thingDefStyles.Any(y => y.styleDef == thingStyleDef));
-						foreach (var styleCategoryDef in styleCategoryDefs)
+						foreach (var styleCategoryDef in DefDatabase<StyleCategoryDef>.AllDefsListForReading)
 						{
+							if (!styleCategoryDef.thingDefStyles.Any(y => y.styleDef == thingStyleDef)) continue;
+
 							//Find in list
 							ThingDefStyle thingDefStyle = styleCategoryDef.thingDefStyles.FirstOrDefault(x => x.styleDef == thingStyleDef);
 							if (thingDefStyle == null) continue;
@@ -577,6 +531,12 @@ namespace CherryPicker
 						break;
 					}
 
+					case nameof(InspirationDef):
+					{
+						((InspirationDef)def).baseCommonality = 0f;
+						break;
+					}
+
 					case nameof(WorkTypeDef):
 					{
 						WorkTypeDef workTypeDef = def as WorkTypeDef;
@@ -595,7 +555,7 @@ namespace CherryPicker
 					case nameof(PreceptDef):
 					{
 						PreceptDef preceptDef = def as PreceptDef;
-						preceptDef.allowedForNPCFactions = false;
+						preceptDef.enabledForNPCFactions = false;
 						preceptDef.visible = false;
 						preceptDef.selectionWeight = 0;
 						DefDatabase<PreceptDef>.Remove(preceptDef);
@@ -623,8 +583,8 @@ namespace CherryPicker
 					case nameof(RaidStrategyDef):
 					{
 						RaidStrategyDef raidStrategyDef = def as RaidStrategyDef;
-						raidStrategyDef.pointsFactorCurve = new SimpleCurve() { { new CurvePoint(0, 0), true } };
-						raidStrategyDef.selectionWeightPerPointsCurve = new SimpleCurve() { { new CurvePoint(0, 0), true } };
+						raidStrategyDef.pointsFactorCurve = zeroCurve;
+						raidStrategyDef.selectionWeightPerPointsCurve = zeroCurve;
 						break;
 					}
 
@@ -668,11 +628,6 @@ namespace CherryPicker
 							recipeDef.defaultIngredientFilter?.specialFiltersToDisallow?.Remove(specialThingFilterDef.defName);
 							recipeDef.forceHiddenSpecialFilters?.Remove(specialThingFilterDef);
 						}
-						//Update categories
-						foreach (ThingCategoryDef thingCategoryDef in categoryCache)
-						{
-							thingCategoryDef.childSpecialFilters.Remove(specialThingFilterDef);
-						}
 
 						break;
 					}
@@ -684,12 +639,130 @@ namespace CherryPicker
 						break;
 					}
 
-					default: return false;
+					case nameof(PawnKindDef):
+					{
+						PawnKindDef pawnKindDef = def as PawnKindDef;
+						pawnKindDef.combatPower = float.MaxValue; //Should make it fail selective filters
+						pawnKindDef.canArriveManhunter = false;
+						pawnKindDef.canBeSapper = false;
+						pawnKindDef.allowInMechClusters = false;
+						pawnKindDef.minGenerationAge = 0;
+						break;
+					}
+
+					case nameof(GenStepDef):
+					{
+						foreach (MapGeneratorDef mapGeneratorDef in DefDatabase<MapGeneratorDef>.AllDefsListForReading)
+						{
+							mapGeneratorDef.genSteps?.Remove(def as GenStepDef);
+						}
+						break;
+					}
+					
+					case nameof(HediffDef):
+					{
+						break;
+					}
+
+					case nameof(StorytellerDef):
+					{
+						((StorytellerDef)def).listVisible = false;
+						break;
+					}
+
+					case nameof(ScenarioDef):
+					{
+						((ScenarioDef)def).scenario.showInUI = false;
+						break;
+					}
+
+					case nameof(DesignationDef):
+					{
+						processDesignators = true;
+						break;
+					}
+
+					case nameof(FactionDef):
+					{
+						FactionDef factiondef = def as FactionDef;
+						factiondef.maxConfigurableAtWorldCreation = -1; //Makes the UI skip it
+						factiondef.startingCountAtWorldCreation = 0;
+						factiondef.requiredCountAtGameStart = 0;
+						break;
+					}
+
+					case nameof(BodyTypeDef):
+					{
+						processBodyTypes = true;
+						break;
+					}
+
+					case nameof(BackstoryDef):
+					{
+						DefDatabase<BackstoryDef>.Remove(def as BackstoryDef);
+						break;
+					}
+
+					case nameof(WeatherDef):
+					{
+						WeatherDef weatherDef = def as WeatherDef;
+						weatherDef.temperatureRange = new FloatRange(-999f, -998f); //Hack to invalidate for all biomes
+						weatherDef.isBad = false; //Excludes from forced weather
+						break;
+					}
+					
+					case nameof(PawnsArrivalModeDef):
+					{
+						PawnsArrivalModeDef pawnsArrivalModeDef = def as PawnsArrivalModeDef;
+						pawnsArrivalModeDef.minTechLevel = TechLevel.Archotech;
+						pawnsArrivalModeDef.pointsFactorCurve = zeroCurve;
+						pawnsArrivalModeDef.selectionWeightCurve = zeroCurve;
+						break;
+					}
+					
+					case nameof(GeneDef):
+					{
+						if (!ModLister.BiotechInstalled) break;
+						DefDatabase<GeneDef>.Remove(def as GeneDef);
+						break;
+					}
+
+					case nameof(XenotypeDef):
+					{
+						if (!ModLister.BiotechInstalled) break;
+						DefDatabase<XenotypeDef>.Remove(def as XenotypeDef);
+						processXenotypes = true;
+						break;
+					}
+
+					case nameof(ScatterableDef):
+					{
+						ScatterableDef scatterableDef = def as ScatterableDef;
+						scatterableDef.scatterType = "null";
+						break;
+					}
+					
+					//Mod: Vanilla Factions Expanded: Ancients
+					case "PowerDef":
+					{
+						if (typeCache.TryGetValue("PowerDef", out Type type))
+						{
+							GenGeneric.InvokeStaticMethodOnGenericType(typeof(DefDatabase<>), type, "Remove", def);
+						}
+						break;
+					}
+					
+					default:
+					{
+						Log.Error("[Cherry Picker] " + (def?.defName ?? "<unknown>") + " is an unknown type.");
+						return false;
+					}
 				}
 			}
 			//In the event there's a bug, this will prevent the exposure from hanging and causing data loss
-			catch (Exception)            
+			catch (Exception ex)
 			{                
+				Log.Error("[Cherry Picker] Error processing " + (def?.defName ?? "<unknown>") + "...\n" + ex);
 				return false;
 			}
 			if (reloadRequired && Current.ProgramState == ProgramState.Playing)
@@ -698,7 +771,7 @@ namespace CherryPicker
 			}
 			return true;
 		}
-		public static bool TryRestoreDef(Def def)
+		static bool TryRestoreDef(Def def)
 		{
 			try
 			{
@@ -753,14 +826,319 @@ namespace CherryPicker
 						return false;
 					}
 
-					default: return false;
+					case nameof(BackstoryDef):
+					{
+						DefDatabase<BackstoryDef>.Add(def as BackstoryDef);
+						break;
+					}
+
+					case nameof(HediffDef):
+					{
+						break;
+					}
+					
+					case nameof(StorytellerDef):
+					{
+						((StorytellerDef)def).listVisible = true;
+						break;
+					}
+
+					case nameof(ScenarioDef):
+					{
+						((ScenarioDef)def).scenario.showInUI = true;
+						break;
+					}
+
+					default:
+					{
+						return false;
+					}
 				}
 			}
-			catch (Exception)            
+			catch (Exception ex)
 			{                
+				Log.Error("[Cherry Picker] Error restoring " + (def?.defName ?? "<unknown>") + "...\n" + ex);
 				return false;
 			}
 			return true;
+		}
+		static void PostProcess()
+		{
+			//Update categories
+			var compiledCategories = DefDatabase<ThingCategoryDef>.AllDefsListForReading.SelectMany(x => x.ThisAndChildCategoryDefs ?? Enumerable.Empty<ThingCategoryDef>()).ToArray();
+			int length = DefDatabase<ScenarioDef>.DefCount;
+			for (int i = 0; i < length; ++i)
+			{
+				ThingCategoryDef thingCategoryDef = compiledCategories[i];
+				thingCategoryDef.allChildThingDefsCached?.RemoveWhere(x => processedDefs.Contains(x));
+				thingCategoryDef.sortedChildThingDefsCached?.RemoveAll(x => processedDefs.Contains(x));
+				thingCategoryDef.childThingDefs?.RemoveAll(x => processedDefs.Contains(x));
+				thingCategoryDef.childSpecialFilters.RemoveAll(x => processedDefs.Contains(x));
+			}
+
+			//Scenario starting items
+			length = DefDatabase<ScenarioDef>.DefCount;
+			for (int i = 0; i < length; ++i)
+			{
+				ScenarioDef scenarioDef = DefDatabase<ScenarioDef>.defsList[i];
+				scenarioDef.scenario.parts?.RemoveAll(y => y.GetType() == typeof(ScenPart_StartingThing_Defined) && 
+					processedDefs.Contains(((ScenPart_StartingThing_Defined)y).thingDef));
+
+				if(processXenotypes)
+				{
+					foreach (var scenPart in scenarioDef.scenario?.parts ?? Enumerable.Empty<ScenPart>())
+					{
+						ScenPart_ConfigPage_ConfigureStartingPawns_Xenotypes xenoScenPart = scenPart as ScenPart_ConfigPage_ConfigureStartingPawns_Xenotypes;
+						if (xenoScenPart == null) continue;
+						xenoScenPart.overrideKinds?.RemoveAll(x => processedDefs.Contains(x.xenotype));
+						xenoScenPart.xenotypeCounts?.RemoveAll(x => processedDefs.Contains(x.xenotype));
+					}
+				}
+			}
+
+			//Recipes using removed items
+			length = DefDatabase<RecipeDef>.DefCount;
+			for (int i = 0; i < length; ++i)
+			{
+				RecipeDef recipeDef = DefDatabase<RecipeDef>.defsList[i];
+				foreach (IngredientCount ingredientCount in recipeDef.ingredients ?? Enumerable.Empty<IngredientCount>())
+				{
+					ingredientCount.filter?.thingDefs?.RemoveAll(x => processedDefs.Contains(x));
+					ingredientCount.filter?.allowedDefs?.RemoveWhere(x => processedDefs.Contains(x));
+				}
+
+				recipeDef.fixedIngredientFilter?.thingDefs?.RemoveAll(x => processedDefs.Contains(x));
+				recipeDef.fixedIngredientFilter?.allowedDefs?.RemoveWhere(x => processedDefs.Contains(x));
+				recipeDef.defaultIngredientFilter?.thingDefs?.RemoveAll(x => processedDefs.Contains(x));
+				recipeDef.defaultIngredientFilter?.allowedDefs?.RemoveWhere(x => processedDefs.Contains(x));
+			}
+
+			//Process references within thingDefs
+			length = DefDatabase<ThingDef>.DefCount;
+			for (int i = 0; i < length; ++i)
+			{
+				ThingDef thingDef = DefDatabase<ThingDef>.defsList[i];
+				//Costlists
+				thingDef.costList?.RemoveAll(x => processedDefs.Contains(x?.thingDef));
+				thingDef.costListForDifficulty?.costList?.RemoveAll(x => processedDefs.Contains(x?.thingDef));
+				//Butchery
+				thingDef.butcherProducts?.RemoveAll(x => processedDefs.Contains(x?.thingDef));
+				//Designations
+				if (processedDefs.Contains(thingDef.designationCategory)) thingDef.designationCategory = null;
+				//Recipes
+				thingDef.allRecipesCached?.RemoveAll(x => processedDefs.Contains(x));
+				thingDef.recipes?.RemoveAll(x => processedDefs.Contains(x));
+				//Kill leavings
+				thingDef.killedLeavings?.RemoveAll(x => processedDefs.Contains(x?.thingDef));
+				//0 out spawner comps
+				foreach (CompProperties compProperties in thingDef.comps ?? Enumerable.Empty<CompProperties>())
+				{
+					if (compProperties.compClass == typeof(CompSpawner))
+					{
+						CompProperties_Spawner compProperties_Spawner = compProperties as CompProperties_Spawner;
+						if (compProperties_Spawner != null && processedDefs.Contains(compProperties_Spawner.thingToSpawn)) compProperties_Spawner.spawnCount = 0;
+					}
+				}
+			}
+
+			//Process TraderKindDef for removed items
+			length = DefDatabase<TraderKindDef>.DefCount;
+			for (int i = 0; i < length; ++i)
+			{
+				TraderKindDef traderKindDef = DefDatabase<TraderKindDef>.defsList[i];
+				
+				var tmpList = traderKindDef.stockGenerators?.ToList();
+				foreach (var stockGenerator in tmpList ?? Enumerable.Empty<StockGenerator>())
+				{
+					StockGenerator_MultiDef stockGenerator_MultiDef = stockGenerator as StockGenerator_MultiDef;
+					if (stockGenerator_MultiDef != null)
+					{
+						stockGenerator_MultiDef.thingDefs?.RemoveAll(x => processedDefs.Contains(x));
+
+						//If defs were removed and this list is now empty, remove the whole generator
+						if (stockGenerator_MultiDef.thingDefs.Count == 0) traderKindDef.stockGenerators.Remove(stockGenerator);
+						continue;
+					}
+
+					StockGenerator_SingleDef stockGenerator_SingleDef = stockGenerator as StockGenerator_SingleDef;
+					if (stockGenerator_SingleDef != null && processedDefs.Contains(stockGenerator_SingleDef.thingDef))
+					{
+						traderKindDef.stockGenerators.Remove(stockGenerator);
+					}
+				}
+			}
+			
+			//Process pawnkinds that reference this item
+			length = DefDatabase<PawnKindDef>.DefCount;
+			for (int i = 0; i < length; ++i)
+			{
+				PawnKindDef pawnKindDef = DefDatabase<PawnKindDef>.defsList[i];
+				pawnKindDef.apparelRequired?.RemoveAll(x => processedDefs.Contains(x));
+				pawnKindDef.techHediffsRequired?.RemoveAll(x => processedDefs.Contains(x));
+				//Omits from manhunter event
+				if (processedDefs.Contains(pawnKindDef.race))
+				{
+					pawnKindDef.canArriveManhunter = false;
+					pawnKindDef.combatPower = float.MaxValue; //Makes too expensive to ever buy with points
+					pawnKindDef.isGoodBreacher = false; //Special checks
+				}
+				if (processXenotypes) pawnKindDef.xenotypeSet?.xenotypeChances?.RemoveAll(x => processedDefs.Contains(x.xenotype));
+			}
+
+			length = DefDatabase<BiomeDef>.DefCount;
+			for (int i = 0; i < length; ++i)
+			{
+				BiomeDef biomeDef = DefDatabase<BiomeDef>.defsList[i];
+				biomeDef.wildPlants?.RemoveAll(x => processedDefs.Contains(x.plant));
+				biomeDef.cachedWildPlants?.RemoveAll(x => processedDefs.Contains(x));
+				biomeDef.cachedPlantCommonalities?.RemoveAll(x => processedDefs.Contains(x.Key));
+				//Prevent biome spawning
+				foreach (BiomeAnimalRecord biomeAnimalRecord in biomeDef.wildAnimals ?? Enumerable.Empty<BiomeAnimalRecord>())
+				{
+					if (processedDefs.Contains(biomeAnimalRecord.animal?.race)) biomeAnimalRecord.commonality = 0;
+				}
+			}
+
+			//Check if used for runes/junk on map gen
+			length = DefDatabase<GenStepDef>.DefCount;
+			for (int i = 0; i < length; ++i)
+			{
+				GenStepDef genStepDef = DefDatabase<GenStepDef>.defsList[i];
+				GenStep_ScatterGroup genStep_ScatterGroup = genStepDef.genStep as GenStep_ScatterGroup;
+				if (genStep_ScatterGroup != null)
+				{
+					foreach (GenStep_ScatterGroup.ScatterGroup scatterGroup in genStep_ScatterGroup.groups)
+					{
+						scatterGroup.things.RemoveAll(x => processedDefs.Contains(x.thing));
+					}
+				}
+				GenStep_ScatterThings genStep_ScatterThings = genStepDef.genStep as GenStep_ScatterThings;
+				if (genStep_ScatterThings != null && processedDefs.Contains(genStep_ScatterThings.thingDef))
+				{
+					genStep_ScatterThings.clusterSize = 0;
+				}
+			}
+
+			//Remove removed genes from xenotypes
+			if (ModLister.BiotechInstalled)
+			{
+				length = DefDatabase<XenotypeDef>.DefCount;
+				for (int i = 0; i < length; ++i)
+				{
+					XenotypeDef xenotypeDef = DefDatabase<XenotypeDef>.defsList[i];
+					xenotypeDef.genes?.RemoveAll(x => processedDefs.Contains(x));
+				}
+
+				if (processXenotypes)
+				{
+					length = DefDatabase<FactionDef>.DefCount;
+					for (int i = 0; i < length; ++i)
+					{
+						FactionDef factionDef = DefDatabase<FactionDef>.defsList[i];
+						factionDef.xenotypeSet?.xenotypeChances?.RemoveAll(x => processedDefs.Contains(x.xenotype));
+					}
+					if (ModLister.ideologyInstalled)
+					{
+						length = DefDatabase<MemeDef>.DefCount;
+						for (int i = 0; i < length; ++i)
+						{
+							MemeDef memeDef = DefDatabase<MemeDef>.defsList[i];
+							memeDef.xenotypeSet?.xenotypeChances?.RemoveAll(x => processedDefs.Contains(x.xenotype));
+						}
+					}
+				}
+			}
+
+			//Is this building used for a ideology precept?
+			if (ModLister.IdeologyInstalled)
+			{
+				length = DefDatabase<PreceptDef>.DefCount;
+				for (int i = 0; i < length; ++i)
+				{
+					PreceptDef preceptDef = DefDatabase<PreceptDef>.defsList[i];
+					preceptDef.buildingDefChances?.RemoveAll(x => processedDefs.Contains(x.def));
+				}
+			}
+
+			//Process designation removals
+			if (processDesignators)
+			{
+				foreach (DesignationCategoryDef designationCategoryDef in DefDatabase<DesignationCategoryDef>.AllDefsListForReading)
+				{
+					foreach (Type type in designationCategoryDef.specialDesignatorClasses.ToList())
+					{
+						if (type == null) continue;
+						Designator designator = (Designator)Activator.CreateInstance(type);
+						if (processedDefs.Contains(designator.Designation))
+						{
+							designationCategoryDef.specialDesignatorClasses?.Remove(type);
+							designationCategoryDef.resolvedDesignators?.Remove(designator);
+						}
+					}
+				}
+			}
+
+			//Process body types from the backstory db
+			if (processBodyTypes)
+			{
+				foreach (BackstoryDef backstory in DefDatabase<BackstoryDef>.AllDefsListForReading)
+				{
+					if (processedDefs.Contains(backstory.bodyTypeMale)) backstory.bodyTypeMale = BodyTypeDefOf.Male;
+					if (processedDefs.Contains(backstory.bodyTypeFemale)) backstory.bodyTypeFemale = BodyTypeDefOf.Female;
+					if (processedDefs.Contains(backstory.bodyTypeGlobal)) backstory.bodyTypeGlobal = null;
+				}
+			}
+
+			//Process factions
+			length = DefDatabase<FactionDef>.DefCount;
+			for (int i = 0; i < length; ++i)
+			{
+				FactionDef factionDef = DefDatabase<FactionDef>.defsList[i];
+				//If a pawnkind was removed that a faction defaulted to, change the default to Colonist
+				if (processedDefs.Contains(factionDef.basicMemberKind)) factionDef.basicMemberKind = PawnKindDefOf.Colonist;
+
+				//Process memes from factions
+				factionDef.requiredMemes?.RemoveAll(x => processedDefs.Contains(x));
+				if (factionDef.requiredMemes?.Count == 0) factionDef.requiredMemes = null;
+			}
+			
+			//ThingSetMakerDef
+			length = DefDatabase<ThingSetMakerDef>.DefCount;
+			for (int i = 0; i < length; ++i)
+			{
+				ThingSetMakerDef thingSetMakerDef = DefDatabase<ThingSetMakerDef>.defsList[i];
+
+				ThingSetMaker_Sum thingSetMaker_Sum = thingSetMakerDef.root as ThingSetMaker_Sum;
+				if (thingSetMaker_Sum == null) continue;
+				foreach (var option in thingSetMaker_Sum.options ?? Enumerable.Empty<ThingSetMaker_Sum.Option>())
+				{
+					ThingSetMaker_RandomOption thingSetMaker_RandomOption = option?.thingSetMaker as ThingSetMaker_RandomOption;
+					if (thingSetMaker_RandomOption == null) continue;
+					foreach (var item in thingSetMaker_RandomOption.options ?? Enumerable.Empty<ThingSetMaker_RandomOption.Option>())
+					{
+						//Remove rewards based on a specific item, if that item was removed
+						if (item.weightIfPlayerHasNoItemItem != null && processedDefs.Contains(item.weightIfPlayerHasNoItemItem))
+						{
+							item.weight = 0f;
+							if (item.weightIfPlayerHasNoItem != null) item.weightIfPlayerHasNoItem = 0f;
+						}
+						//Remove rewards based on a specific xenotype, if that item was xenotype
+						if (processXenotypes && item.weightIfPlayerHasXenotypeXenotype != null && processedDefs.Contains(item.weightIfPlayerHasXenotypeXenotype))
+						{
+							item.weightIfPlayerHasXenotypeXenotype = null;
+							if (item.weightIfPlayerHasNoItem != null) item.weightIfPlayerHasXenotype = 0f;
+						}
+
+						//Remove rewards that come from a specific faction, if faction was removed
+						ThingSetMaker_Conditional_MakingFaction thingSetMaker_Conditional_MakingFaction = item.thingSetMaker as ThingSetMaker_Conditional_MakingFaction;
+						if (thingSetMaker_Conditional_MakingFaction == null) continue;
+						if (processedDefs.Contains(thingSetMaker_Conditional_MakingFaction.makingFaction)) 
+						{
+							item.weight = 0f;
+						}
+					}
+				}
+			}
 		}
 	}
 }

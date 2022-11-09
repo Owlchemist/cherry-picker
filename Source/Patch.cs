@@ -4,7 +4,9 @@ using Verse;
 using RimWorld;
 using System.Collections.Generic;
 using System;
+using System.Linq;
 using static CherryPicker.ModSettings_CherryPicker;
+using static CherryPicker.CherryPickerUtility;
 
 namespace CherryPicker
 {
@@ -30,6 +32,25 @@ namespace CherryPicker
 		static public bool Prefix(Apparel newApparel)
 		{	
 			return !allRemovedDefs.Contains(newApparel?.def.ToKey());
+		}
+    }
+
+	//We patch the next 2 methods because some mods add quests through c# and ignore cherry picker otherwise
+	[HarmonyPatch(typeof(QuestUtility), nameof(QuestUtility.SendLetterQuestAvailable))]
+	public class Patch_QuestUtility
+	{
+		static public bool Prefix(Quest quest)
+		{	
+			return !allRemovedDefs.Contains(quest?.root?.ToKey());
+		}
+    }
+
+	[HarmonyPatch(typeof(QuestManager), nameof(QuestManager.Add))]
+	public class Patch_QuestManager
+	{
+		static public bool Prefix(Quest quest)
+		{	
+			return !allRemovedDefs.Contains(quest?.root?.ToKey());
 		}
     }
 
