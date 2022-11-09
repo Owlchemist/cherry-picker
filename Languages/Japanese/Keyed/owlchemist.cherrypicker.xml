@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <CherryPicker.RestartHeader>再起動が必要</CherryPicker.RestartHeader>
+  <CherryPicker.RestartRequired>定義ファイルを元の値に戻すにはゲームを再起動させる必要があります</CherryPicker.RestartRequired>
+
+  <CherryPicker.ReloadHeader>リロードが必要</CherryPicker.ReloadHeader>
+  <CherryPicker.ReloadRequired>この特定の変更にはセーブデータのリロードが必要です。ゲームを再起動する必要はありません。</CherryPicker.ReloadRequired>
+
+</LanguageData>
