@@ -19,7 +19,7 @@ namespace CherryPicker
 		//public static HashSet<Backstory> removedBackstories = new HashSet<Backstory>(); //Used to keep track of direct DB removals
 		public static bool filtered; //Tells the script the filter box is being used
 		public static bool reprocess; //Flags if the list needs to be processed again, in the event a DefList was appended
-		static bool processDesignators, processBodyTypes, processXenotypes;
+		static bool processDesignators, processBodyTypes, processXenotypes, processRulePackDef;
 		public static HashSet<string> reprocessDefs = new HashSet<string>(); //These are defs that need to be added to the working list next reprocess
 		public static Dialog_MessageBox reloadGameMessage = new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog);
 		static SimpleCurve zeroCurve = new SimpleCurve() { { new CurvePoint(0, 0), true } };
@@ -101,6 +101,7 @@ namespace CherryPicker
 					DefDatabase<BackstoryDef>.AllDefs,
 					DefDatabase<WeatherDef>.AllDefs,
 					DefDatabase<ScatterableDef>.AllDefs,
+					DefDatabase<RulePackDef>.AllDefs,
 					DefDatabase<DefList>.AllDefs
 				}.SelectMany(x => x).Distinct().ToArray();
 
@@ -312,11 +313,12 @@ namespace CherryPicker
 							thingDef.minifiedDef = null; //Removes from storage filters
 							thingDef.researchPrerequisites = null; //Removes from research UI
 
-							thingDef.building.claimable = false; //Possibly only needed to work better with Minify Everything
-
-							//If mineable
 							if (thingDef.building != null)
 							{
+								thingDef.building.claimable = false; //Possibly only needed to work better with Minify Everything
+								thingDef.building.buildingTags?.Clear();
+
+								//If mineable
 								thingDef.building.mineableScatterCommonality = 0;
 								thingDef.building.mineableScatterLumpSizeRange = IntRange.zero;
 								thingDef.building.isNaturalRock = false;
@@ -741,6 +743,12 @@ namespace CherryPicker
 						scatterableDef.scatterType = "null";
 						break;
 					}
+
+					case nameof(RulePackDef):
+					{
+						processRulePackDef = true;
+						break;
+					}
 					
 					//Mod: Vanilla Factions Expanded: Ancients
 					case "PowerDef":
@@ -930,7 +938,7 @@ namespace CherryPicker
 				thingDef.recipes?.RemoveAll(x => processedDefs.Contains(x));
 				//Kill leavings
 				thingDef.killedLeavings?.RemoveAll(x => processedDefs.Contains(x?.thingDef));
-				//0 out spawner comps
+				//Process out spawner comps
 				foreach (CompProperties compProperties in thingDef.comps ?? Enumerable.Empty<CompProperties>())
 				{
 					if (compProperties.compClass == typeof(CompSpawner))
@@ -938,9 +946,20 @@ namespace CherryPicker
 						CompProperties_Spawner compProperties_Spawner = compProperties as CompProperties_Spawner;
 						if (compProperties_Spawner != null && processedDefs.Contains(compProperties_Spawner.thingToSpawn)) compProperties_Spawner.spawnCount = 0;
 					}
+					else if (compProperties.compClass == typeof(CompSpawnerPawn))
+					{
+						CompProperties_SpawnerPawn compProperties_SpawnerPawn = compProperties as CompProperties_SpawnerPawn;
+						compProperties_SpawnerPawn.spawnablePawnKinds?.RemoveAll(x => processedDefs.Contains(x));
+						//Seems the game already has handling if the list becomes 0 counted.
+					}
 				}
 			}
 
+			
+			
+			
+			
+			
 			//Process TraderKindDef for removed items
 			length = DefDatabase<TraderKindDef>.DefCount;
 			for (int i = 0; i < length; ++i)
@@ -1049,9 +1068,27 @@ namespace CherryPicker
 				}
 			}
 
-			//Is this building used for a ideology precept?
 			if (ModLister.IdeologyInstalled)
 			{
+				//Remove styles (Ideology)
+				var styleCategoryDefs2 = DefDatabase<StyleCategoryDef>.AllDefsListForReading.Select(x => x.thingDefStyles);
+				//List of lists
+				foreach (List<ThingDefStyle> styleCategoryDef in styleCategoryDefs2)
+				{
+					List<ThingDefStyle> styleDefWorkingList = styleCategoryDef.ToList();
+					//Go through this list
+					foreach (ThingDefStyle thingDefStyles in styleCategoryDef)
+					{
+						if (processedDefs.Contains(thingDefStyles.thingDef))
+						{
+							var styleDef = thingDefStyles.styleDef;
+							DefDatabase<ThingStyleDef>.AllDefsListForReading.Remove(styleDef);
+							styleDefWorkingList.Remove(thingDefStyles);
+						}
+					}
+				}
+
+				//Is this building used for a ideology precept?
 				length = DefDatabase<PreceptDef>.DefCount;
 				for (int i = 0; i < length; ++i)
 				{
@@ -1101,6 +1138,19 @@ namespace CherryPicker
 				factionDef.requiredMemes?.RemoveAll(x => processedDefs.Contains(x));
 				if (factionDef.requiredMemes?.Count == 0) factionDef.requiredMemes = null;
 			}
+
+			if (processRulePackDef)
+			{
+				//Process factions
+				length = DefDatabase<CultureDef>.DefCount;
+				for (int i = 0; i < length; ++i)
+				{
+					CultureDef cultureDef = DefDatabase<CultureDef>.defsList[i];
+					if (processedDefs.Contains(cultureDef.pawnNameMaker)) cultureDef.pawnNameMaker = null;
+					if (processedDefs.Contains(cultureDef.pawnNameMakerFemale)) cultureDef.pawnNameMakerFemale = null;
+					if (processedDefs.Contains(cultureDef.leaderTitleMaker)) cultureDef.leaderTitleMaker = null;
+				}
+			}	
 			
 			//ThingSetMakerDef
 			length = DefDatabase<ThingSetMakerDef>.DefCount;
