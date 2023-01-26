@@ -22,7 +22,8 @@ namespace CherryPicker
 		{
 			Listing_Standard options = new Listing_Standard();
 			//Make stationary rect for the filter box
-			Rect filterRect = new Rect(inRect.x, inRect.y + 30f, inRect.width, 100f);
+			Rect filterRect = inRect.RightHalf();
+			Rect filterRect2 = inRect.LeftHalf();
 			//Prepare scrollable view area rect
 			Rect scrollViewRect = inRect;
 			scrollViewRect.y += 30f;
@@ -35,7 +36,27 @@ namespace CherryPicker
 			//Calculate size of rect based on content
 			Rect listRect = new Rect(0f, 0f, inRect.width - 30f, (lineNumber + 2) * lineHeight);
 
-			options.Begin(inRect);
+			options.Begin(filterRect2);
+				string buttonText = filteredType?.Name;
+				TooltipHandler.TipRegion(new Rect(options.curX, options.curY, options.ColumnWidth, 30), ("CherryPicker." + (buttonText ?? "AllDefs") + ".Desc").Translate() );
+				if (buttonText == null)
+				{
+					buttonText = "CherryPicker.AllDefTypes".Translate();
+				}
+				if (options.ButtonText(buttonText))
+				{
+					try
+					{
+						List<FloatMenuOption> buttonMenu = new List<FloatMenuOption>(FloatMenu());
+						if (buttonMenu.Count != 0)
+						{
+							Find.WindowStack.Add(new FloatMenu(buttonMenu));
+						}
+					}
+					catch (System.Exception ex) { Log.Message("[Cherry Picker] Error creating drop-down menu.\n" + ex); }
+				}
+			options.End();
+			options.Begin(filterRect);
 				filterCache = options.TextEntryLabeled("Filter: ", filterCache);
 				filter = filterCache.ToLower();
 				filtered = !String.IsNullOrEmpty(filter);
@@ -58,6 +79,7 @@ namespace CherryPicker
 		public override void WriteSettings()
 		{
 			base.WriteSettings();
+			cachedMenu = null; //Cleanup static to free memory
 		}
 	}
 

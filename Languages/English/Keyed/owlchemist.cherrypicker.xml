@@ -5,4 +5,52 @@
 	
 	<CherryPicker.ReloadHeader>Reload required</CherryPicker.ReloadHeader>
 	<CherryPicker.ReloadRequired>These particular changes require reloading the save game. You do not need to restart the game.</CherryPicker.ReloadRequired>
+	
+	<CherryPicker.AllDefTypes>All def types</CherryPicker.AllDefTypes>
+	<CherryPicker.AllDefs.Desc>List all supported defs.</CherryPicker.AllDefs.Desc>
+	
+	<CherryPicker.ThingDef.Desc>Includes things like items, buildings, equipment, plants, and animals.</CherryPicker.ThingDef.Desc>
+	<CherryPicker.TerrainDef.Desc>Floors, both natural and artificial.</CherryPicker.TerrainDef.Desc>
+	<CherryPicker.RecipeDef.Desc>Things you can craft, whether that be cooking, smithing, tailoring, etc.</CherryPicker.RecipeDef.Desc>
+	<CherryPicker.TraitDef.Desc>Pawn traits.</CherryPicker.TraitDef.Desc>
+	<CherryPicker.ResearchProjectDef.Desc>Research projects.</CherryPicker.ResearchProjectDef.Desc>
+	<CherryPicker.DesignationCategoryDef.Desc>These are the categories in the architect tab.</CherryPicker.DesignationCategoryDef.Desc>
+	<CherryPicker.ThingStyleDef.Desc>These are the alternative styles (Ideology).</CherryPicker.ThingStyleDef.Desc>
+	<CherryPicker.QuestScriptDef.Desc>Quests are event types that usually involve a confirmation prompt and reward choice.</CherryPicker.QuestScriptDef.Desc>
+	<CherryPicker.IncidentDef.Desc>Incidents are events that just spontaneously happen.</CherryPicker.IncidentDef.Desc>
+	<CherryPicker.HediffDef.Desc>Hediffs are things that show up in the health tab, such as diseases and buffs/debufs.</CherryPicker.HediffDef.Desc>
+	<CherryPicker.ThoughtDef.Desc>Mood thoughts.</CherryPicker.ThoughtDef.Desc>
+	<CherryPicker.TraderKindDef.Desc>Wandering trader types.</CherryPicker.TraderKindDef.Desc>
+	<CherryPicker.GatheringDef.Desc>Gatherings are spontaneous, internal events such as parties.</CherryPicker.GatheringDef.Desc>
+	<CherryPicker.WorkTypeDef.Desc>Lets you hide a work type from the UI.</CherryPicker.WorkTypeDef.Desc>
+	<CherryPicker.MemeDef.Desc>Meme types.</CherryPicker.MemeDef.Desc>
+	<CherryPicker.PreceptDef.Desc>Precept types.</CherryPicker.PreceptDef.Desc>
+	<CherryPicker.RitualPatternDef.Desc>Ritual types.</CherryPicker.RitualPatternDef.Desc>
+	<CherryPicker.HairDef.Desc>Pawn hair types.</CherryPicker.HairDef.Desc>
+	<CherryPicker.BeardDef.Desc>Pawn beard types.</CherryPicker.BeardDef.Desc>
+	<CherryPicker.RaidStrategyDef.Desc>A raid strategy is what raiders do after arriving, such as immediate attack or sapping. See PawnsArrivalModeDef for their arrival method.</CherryPicker.RaidStrategyDef.Desc>
+	<CherryPicker.MainButtonDef.Desc>These are the buttons along the bottom bar.</CherryPicker.MainButtonDef.Desc>
+	<CherryPicker.AbilityDef.Desc>These are psycasts, royalty title abilities, and ideology role abilities.</CherryPicker.AbilityDef.Desc>
+	<CherryPicker.BiomeDef.Desc>Biome types.</CherryPicker.BiomeDef.Desc>
+	<CherryPicker.MentalBreakDef.Desc>Mental break types.</CherryPicker.MentalBreakDef.Desc>
+	<CherryPicker.SpecialThingFilterDef.Desc>These are special filters seen in the storage and bill configuration UI.</CherryPicker.SpecialThingFilterDef.Desc>
+	<CherryPicker.PawnKindDef.Desc>While a race (animal, humanoid, mech) is a ThingDef, a PawnKindDef represents a specific configuration for that race, such as their equipment.</CherryPicker.PawnKindDef.Desc>
+	<CherryPicker.GenStepDef.Desc>These control the steps that game processes when generating a new map.</CherryPicker.GenStepDef.Desc>
+	<CherryPicker.InspirationDef.Desc>The type of inspirations pawns may semi-randomly pick.</CherryPicker.InspirationDef.Desc>
+	<CherryPicker.StorytellerDef.Desc>The storytellers.</CherryPicker.StorytellerDef.Desc>
+	<CherryPicker.ScenarioDef.Desc>The scenarios seen on the new game setup screen.</CherryPicker.ScenarioDef.Desc>
+	<CherryPicker.DesignationDef.Desc>Designations are things that show up in the build menu but are not tangible buildings, but instead orders, like for example hunt or slaughter.</CherryPicker.DesignationDef.Desc>
+	<CherryPicker.PawnsArrivalModeDef.Desc>Controls how raiders arrive to maps.</CherryPicker.PawnsArrivalModeDef.Desc>
+	<CherryPicker.GeneDef.Desc>Gene types.</CherryPicker.GeneDef.Desc>
+	<CherryPicker.XenotypeDef.Desc>Xenotypes.</CherryPicker.XenotypeDef.Desc>
+	<CherryPicker.BodyTypeDef.Desc>A pawn's graphical body types such as hulk, fat, and thin.</CherryPicker.BodyTypeDef.Desc>
+	<CherryPicker.FactionDef.Desc>Factions. Note you can also just remove the faction on the new world setup screen.</CherryPicker.FactionDef.Desc>
+	<CherryPicker.PowerDef.Desc>Powers and abilities from the Vanilla Expanded mods.</CherryPicker.PowerDef.Desc>
+	<CherryPicker.BackstoryDef.Desc>Backstories that pawns may randomly pick on generation.</CherryPicker.BackstoryDef.Desc>
+	<CherryPicker.WeatherDef.Desc>Weather types.</CherryPicker.WeatherDef.Desc>
+	<CherryPicker.ScatterableDef.Desc>Scatterables are the non-interactable graphics that break up the monotony of the ground texture, such a big dirt splotches.</CherryPicker.ScatterableDef.Desc>
+	<CherryPicker.RaidAgeRestrictionDef.Desc>These regulate the age that raiders may spawn in as.</CherryPicker.RaidAgeRestrictionDef.Desc>
+	<CherryPicker.WeaponTraitDef.Desc>These are persona weapon traits.</CherryPicker.WeaponTraitDef.Desc>
+	<CherryPicker.RulePackDef.Desc>These special naming rules, for example how a faction may name their pawns or leaders.</CherryPicker.RulePackDef.Desc>
+	<CherryPicker.DefList.Desc>This is a proprietary Cherry Picker def. Mod authors can create these defLists for their mods to create preset lists of defs that users can add/remove.</CherryPicker.DefList.Desc>
 </LanguageData>

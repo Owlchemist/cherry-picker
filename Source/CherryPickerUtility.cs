@@ -58,17 +58,15 @@ namespace CherryPicker
 				allDefs = new IEnumerable<Def>[]
 				{
 					processedDefs,
-					DefDatabase<ThingDef>.AllDefsListForReading.Where(x =>
-						!x.IsBlueprint && !x.IsFrame && !x.isUnfinishedThing &&
-						(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
+					DefDatabase<ThingDef>.AllDefs.Where(x => !x.IsBlueprint && !x.IsFrame && !x.isUnfinishedThing && (x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
 					DefDatabase<TerrainDef>.AllDefs,
 					DefDatabase<RecipeDef>.AllDefs,
 					DefDatabase<TraitDef>.AllDefs,
-					DefDatabase<ResearchProjectDef>.AllDefsListForReading.Where(x => DefDatabase<ResearchProjectDef>.AllDefsListForReading.
+					DefDatabase<ResearchProjectDef>.AllDefs.Where(x => DefDatabase<ResearchProjectDef>.AllDefs.
 									Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true))),
 					DefDatabase<DesignationCategoryDef>.AllDefs,
 					DefDatabase<ThingStyleDef>.AllDefs,
-					DefDatabase<QuestScriptDef>.AllDefsListForReading.Where(x => !DefDatabase<IncidentDef>.AllDefsListForReading.Any(y => y.questScriptDef == x)),
+					DefDatabase<QuestScriptDef>.AllDefs.Where(x => !DefDatabase<IncidentDef>.AllDefs.Any(y => y.questScriptDef == x)),
 					DefDatabase<IncidentDef>.AllDefs,
 					DefDatabase<HediffDef>.AllDefs,
 					DefDatabase<ThoughtDef>.AllDefs,
@@ -95,8 +93,8 @@ namespace CherryPicker
 					DefDatabase<PawnsArrivalModeDef>.AllDefs,
 					DefDatabase<GeneDef>.AllDefs,
 					DefDatabase<XenotypeDef>.AllDefs,
-					DefDatabase<BodyTypeDef>.AllDefsListForReading.Where(x => x != BodyTypeDefOf.Male && x != BodyTypeDefOf.Female),
-					DefDatabase<FactionDef>.AllDefsListForReading.Where(x => x.maxConfigurableAtWorldCreation > 0),
+					DefDatabase<BodyTypeDef>.AllDefs.Where(x => x != BodyTypeDefOf.Male && x != BodyTypeDefOf.Female),
+					DefDatabase<FactionDef>.AllDefs.Where(x => x.maxConfigurableAtWorldCreation > 0),
 					GetDefFromMod(packageID: "vanillaexpanded.vfea", assemblyName: "VFEAncients", nameSpace: "VFEAncients", typeName: "PowerDef"),
 					DefDatabase<BackstoryDef>.AllDefs,
 					DefDatabase<WeatherDef>.AllDefs,
@@ -859,7 +857,7 @@ namespace CherryPicker
 		static void PostProcess()
 		{
 			//Update categories
-			var compiledCategories = DefDatabase<ThingCategoryDef>.AllDefsListForReading.SelectMany(x => x.ThisAndChildCategoryDefs ?? Enumerable.Empty<ThingCategoryDef>()).ToArray();
+			var compiledCategories = DefDatabase<ThingCategoryDef>.AllDefs.SelectMany(x => x.ThisAndChildCategoryDefs ?? Enumerable.Empty<ThingCategoryDef>()).ToArray();
 			for (int i = 0; i < compiledCategories.Length; ++i)
 			{
 				ThingCategoryDef thingCategoryDef = compiledCategories[i];
@@ -1067,7 +1065,7 @@ namespace CherryPicker
 			//Processes styles (Ideology)
 			if (ModLister.IdeologyInstalled)
 			{
-				var styleCategoryDefs2 = DefDatabase<StyleCategoryDef>.AllDefsListForReading.Select(x => x.thingDefStyles);
+				var styleCategoryDefs2 = DefDatabase<StyleCategoryDef>.AllDefs.Select(x => x.thingDefStyles);
 				//List of lists
 				foreach (List<ThingDefStyle> styleCategoryDef in styleCategoryDefs2)
 				{

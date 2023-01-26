@@ -27,9 +27,9 @@ namespace CherryPicker
 		{
 			return def.Split('/')[1];
 		}
-		public static Type ToType(this string key)
+		public static Type ToType(this string typeName, bool literal = false)
 		{
-			string typeName = key.Split('/')[0];
+			if (!literal) typeName = typeName.Split('/')[0];
 
 			//Fast handling for vanilla types
 			Type type;
