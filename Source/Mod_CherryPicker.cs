@@ -9,6 +9,7 @@ using static CherryPicker.DrawUtility;
  
 namespace CherryPicker
 {
+	public class DefList : Def { public List<string> defs; }
     public class Mod_CherryPicker : Mod
 	{
 		public Mod_CherryPicker(ModContentPack content) : base(content)
@@ -81,9 +82,8 @@ namespace CherryPicker
 			base.ExposeData();
 		}
 
-		public static HashSet<string> allRemovedDefs;
+		public static HashSet<string> allRemovedDefs = new HashSet<string>();
 		public static Vector2 scrollPos;
-		public static string filterCache;
-		public static string filter;
+		public static string filterCache, filter;
 	}
 }

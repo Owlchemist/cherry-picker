@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System;
 using System.Linq;
 using RimWorld;
+using HarmonyLib;
+using System.Reflection;
+using System.Reflection.Emit;
 using static CherryPicker.ModSettings_CherryPicker;
 using static CherryPicker.DefUtility;
  
@@ -19,7 +22,7 @@ namespace CherryPicker
 		//public static HashSet<Backstory> removedBackstories = new HashSet<Backstory>(); //Used to keep track of direct DB removals
 		public static bool filtered; //Tells the script the filter box is being used
 		public static bool reprocess; //Flags if the list needs to be processed again, in the event a DefList was appended
-		static bool processDesignators, processBodyTypes, processXenotypes, processRulePackDef;
+		static bool processDesignators, processBodyTypes, processXenotypes, processRulePackDef, processTerrain;
 		public static HashSet<string> reprocessDefs = new HashSet<string>(); //These are defs that need to be added to the working list next reprocess
 		public static Dialog_MessageBox reloadGameMessage = new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog);
 		static SimpleCurve zeroCurve = new SimpleCurve() { { new CurvePoint(0, 0), true } };
@@ -33,9 +36,6 @@ namespace CherryPicker
 		{
 			var timer = new System.Diagnostics.Stopwatch();
   			timer.Start();
-
-			//Check for new-users
-			if (allRemovedDefs == null) allRemovedDefs = new HashSet<string>();
 			
 			Setup();
 
@@ -101,6 +101,8 @@ namespace CherryPicker
 					DefDatabase<BackstoryDef>.AllDefs,
 					DefDatabase<WeatherDef>.AllDefs,
 					DefDatabase<ScatterableDef>.AllDefs,
+					DefDatabase<RaidAgeRestrictionDef>.AllDefs,
+					DefDatabase<WeaponTraitDef>.AllDefs,
 					DefDatabase<RulePackDef>.AllDefs,
 					DefDatabase<DefList>.AllDefs
 				}.SelectMany(x => x).Distinct().ToArray();
@@ -145,7 +147,6 @@ namespace CherryPicker
 			return Enumerable.Empty<Def>();
 		}
 
-
 		static void MakeLabelCache()
 		{
 			searchStringCache = new Dictionary<Def, string>();
@@ -166,13 +167,6 @@ namespace CherryPicker
 			{
 				Type type = key.ToType();
 				string defName = key.ToDefName();
-				/*
-				if (type == typeof(Backstory))
-				{
-					if (BackstoryDatabase.allBackstories.ContainsKey(defName) || removedBackstories.Any(x => x.identifier == defName)) actualRemovedDefs.Add("Backstory/" + defName);
-					continue;
-				}
-				*/
 
 				Def def = GetDef(defName, type);
 				if (allDefs.Contains(def)) actualRemovedDefs.Add(key);
@@ -188,16 +182,6 @@ namespace CherryPicker
 				allRemovedDefs.Add(key);
 				Type type = key.ToType();
 				string defName = key.ToDefName();
-
-				//Special handling for backstories
-				/*
-				if (type == typeof(Backstory) && !removedBackstories.Any(x => x.identifier == defName))
-				{
-					if (BackstoryDatabase.allBackstories.TryGetValue(defName, out Backstory backstory)) removedBackstories.Add(backstory);
-					report.Add(BackstoryDatabase.allBackstories.Remove(defName) ? "\n - " + key : ("\n - FAILED: " + key));
-					continue;
-				}
-				*/
 
 				Def def = GetDef(defName, type);
 				//Because it's a hashlist it'll only return true if this def has not been processed already
@@ -216,20 +200,6 @@ namespace CherryPicker
 			{
 				Type type = key.ToType();
 				string defName = key.ToDefName();
-
-				/*
-				if (type == typeof(Backstory))
-				{
-					var backstory = removedBackstories.FirstOrDefault(x => x.identifier == defName);
-					if (!actualRemovedDefs.Contains(key) && backstory != null)
-					{
-						BackstoryDatabase.allBackstories.Add(defName, backstory);
-					 	removedBackstories.Remove(backstory);
-						allRemovedDefs.Remove(key);
-					}
-					continue;
-				}
-				*/
 
 				Def def = GetDef(defName, type);
 				restart =
@@ -301,7 +271,7 @@ namespace CherryPicker
 								}
 							}
 						}
-						
+
 						//Buildables
 						if (thingDef.category == ThingCategory.Building)
 						{
@@ -324,6 +294,7 @@ namespace CherryPicker
 								thingDef.building.isNaturalRock = false;
 							}
 						}
+						
 						//Items
 						else if (thingDef.category == ThingCategory.Item)
 						{
@@ -375,6 +346,7 @@ namespace CherryPicker
 								}
 							}
 						}
+						
 						//Plants
 						else if (thingDef.category == ThingCategory.Plant && thingDef.plant != null)
 						{
@@ -383,6 +355,7 @@ namespace CherryPicker
 							thingDef.plant.wildBiomes?.Clear();
 							//thingDef.plant.purpose = PlantPurpose.Misc; //Remove from some filters
 						}
+						
 						//Pawns and animals
 						else if (thingDef.category == ThingCategory.Pawn)
 						{
@@ -461,6 +434,7 @@ namespace CherryPicker
 							entry.hiddenPrerequisites?.RemoveAll(x => x == researchProjectDef);
 						}
 						DefDatabase<ResearchProjectDef>.Remove(researchProjectDef);
+						processTerrain = true; //Need to remove research requirements from terrain
 						break;
 					}
 					
@@ -744,6 +718,18 @@ namespace CherryPicker
 						break;
 					}
 
+					case nameof(RaidAgeRestrictionDef):
+					{
+						((RaidAgeRestrictionDef)def).chance = 0f;
+						break;
+					}
+
+					case nameof(WeaponTraitDef):
+					{
+						((WeaponTraitDef)def).commonality = 0f;
+						break;
+					}
+
 					case nameof(RulePackDef):
 					{
 						processRulePackDef = true;
@@ -874,8 +860,7 @@ namespace CherryPicker
 		{
 			//Update categories
 			var compiledCategories = DefDatabase<ThingCategoryDef>.AllDefsListForReading.SelectMany(x => x.ThisAndChildCategoryDefs ?? Enumerable.Empty<ThingCategoryDef>()).ToArray();
-			int length = DefDatabase<ScenarioDef>.DefCount;
-			for (int i = 0; i < length; ++i)
+			for (int i = 0; i < compiledCategories.Length; ++i)
 			{
 				ThingCategoryDef thingCategoryDef = compiledCategories[i];
 				thingCategoryDef.allChildThingDefsCached?.RemoveWhere(x => processedDefs.Contains(x));
@@ -884,8 +869,8 @@ namespace CherryPicker
 				thingCategoryDef.childSpecialFilters.RemoveAll(x => processedDefs.Contains(x));
 			}
 
-			//Scenario starting items
-			length = DefDatabase<ScenarioDef>.DefCount;
+			//Processes scenario starting items
+			int length = DefDatabase<ScenarioDef>.DefCount;
 			for (int i = 0; i < length; ++i)
 			{
 				ScenarioDef scenarioDef = DefDatabase<ScenarioDef>.defsList[i];
@@ -904,7 +889,7 @@ namespace CherryPicker
 				}
 			}
 
-			//Recipes using removed items
+			//Processes recipes using removed items
 			length = DefDatabase<RecipeDef>.DefCount;
 			for (int i = 0; i < length; ++i)
 			{
@@ -921,7 +906,7 @@ namespace CherryPicker
 				recipeDef.defaultIngredientFilter?.allowedDefs?.RemoveWhere(x => processedDefs.Contains(x));
 			}
 
-			//Process references within thingDefs
+			//Process vaious references within thingDefs
 			length = DefDatabase<ThingDef>.DefCount;
 			for (int i = 0; i < length; ++i)
 			{
@@ -936,6 +921,10 @@ namespace CherryPicker
 				//Recipes
 				thingDef.allRecipesCached?.RemoveAll(x => processedDefs.Contains(x));
 				thingDef.recipes?.RemoveAll(x => processedDefs.Contains(x));
+				//Research
+				if (processedDefs.Contains(thingDef.recipeMaker?.researchPrerequisite)) thingDef.recipeMaker.researchPrerequisite = null;
+				else thingDef.recipeMaker?.researchPrerequisites?.RemoveAll(x => processedDefs.Contains(x));
+				thingDef.researchPrerequisites?.RemoveAll(x => processedDefs.Contains(x));
 				//Kill leavings
 				thingDef.killedLeavings?.RemoveAll(x => processedDefs.Contains(x?.thingDef));
 				//Process out spawner comps
@@ -954,11 +943,6 @@ namespace CherryPicker
 					}
 				}
 			}
-
-			
-			
-			
-			
 			
 			//Process TraderKindDef for removed items
 			length = DefDatabase<TraderKindDef>.DefCount;
@@ -1004,6 +988,7 @@ namespace CherryPicker
 				if (processXenotypes) pawnKindDef.xenotypeSet?.xenotypeChances?.RemoveAll(x => processedDefs.Contains(x.xenotype));
 			}
 
+			//Processes biomes
 			length = DefDatabase<BiomeDef>.DefCount;
 			for (int i = 0; i < length; ++i)
 			{
@@ -1011,14 +996,14 @@ namespace CherryPicker
 				biomeDef.wildPlants?.RemoveAll(x => processedDefs.Contains(x.plant));
 				biomeDef.cachedWildPlants?.RemoveAll(x => processedDefs.Contains(x));
 				biomeDef.cachedPlantCommonalities?.RemoveAll(x => processedDefs.Contains(x.Key));
-				//Prevent biome spawning
+				//Prevent animal spawning
 				foreach (BiomeAnimalRecord biomeAnimalRecord in biomeDef.wildAnimals ?? Enumerable.Empty<BiomeAnimalRecord>())
 				{
 					if (processedDefs.Contains(biomeAnimalRecord.animal?.race)) biomeAnimalRecord.commonality = 0;
 				}
 			}
 
-			//Check if used for runes/junk on map gen
+			//Processes gensteps
 			length = DefDatabase<GenStepDef>.DefCount;
 			for (int i = 0; i < length; ++i)
 			{
@@ -1066,11 +1051,22 @@ namespace CherryPicker
 						}
 					}
 				}
+
+				//Process boss groups
+				length = DefDatabase<BossgroupDef>.DefCount;
+				for (int i = 0; i < length; ++i)
+				{
+					BossgroupDef bossgroupDef = DefDatabase<BossgroupDef>.defsList[i];
+					foreach (BossGroupWave bossGroupWave in bossgroupDef.waves ?? Enumerable.Empty<BossGroupWave>())
+					{
+						bossGroupWave.escorts?.RemoveAll(x => processedDefs.Contains(x.kindDef));
+					}
+				}
 			}
 
+			//Processes styles (Ideology)
 			if (ModLister.IdeologyInstalled)
 			{
-				//Remove styles (Ideology)
 				var styleCategoryDefs2 = DefDatabase<StyleCategoryDef>.AllDefsListForReading.Select(x => x.thingDefStyles);
 				//List of lists
 				foreach (List<ThingDefStyle> styleCategoryDef in styleCategoryDefs2)
@@ -1126,6 +1122,17 @@ namespace CherryPicker
 				}
 			}
 
+			//Process terrain
+			if (processTerrain)
+			{
+				length = DefDatabase<TerrainDef>.DefCount;
+				for (int i = 0; i < length; ++i)
+				{
+					TerrainDef terrainDef = DefDatabase<TerrainDef>.defsList[i];
+					terrainDef.researchPrerequisites?.RemoveAll(x => processedDefs.Contains(x));
+				}
+			}
+			
 			//Process factions
 			length = DefDatabase<FactionDef>.DefCount;
 			for (int i = 0; i < length; ++i)
@@ -1137,11 +1144,24 @@ namespace CherryPicker
 				//Process memes from factions
 				factionDef.requiredMemes?.RemoveAll(x => processedDefs.Contains(x));
 				if (factionDef.requiredMemes?.Count == 0) factionDef.requiredMemes = null;
+
+				//VE Classical mod support
+				if (factionDef.modExtensions != null)
+				{
+					DefModExtension ext = factionDef.modExtensions.FirstOrDefault(x => x.GetType().Name == "FactionExtension_SenatorInfo");
+					if (ext == null) continue;
+		
+					var field = ext.GetType().GetField("senatorResearch", AccessTools.all);
+					if (field == null) continue;
+
+					List<ResearchProjectDef> senatorResearch = (List<ResearchProjectDef>)field.GetValue(ext);
+					senatorResearch?.RemoveAll(x => processedDefs.Contains(x));
+				}
 			}
 
+			//Process cultures
 			if (processRulePackDef)
 			{
-				//Process factions
 				length = DefDatabase<CultureDef>.DefCount;
 				for (int i = 0; i < length; ++i)
 				{
