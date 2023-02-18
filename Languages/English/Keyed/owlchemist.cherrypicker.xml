@@ -9,6 +9,8 @@
 	<CherryPicker.AllDefTypes>All def types</CherryPicker.AllDefTypes>
 	<CherryPicker.AllDefs.Desc>List all supported defs.</CherryPicker.AllDefs.Desc>
 	
+	<CherryPicker.AllPacks>All content packs</CherryPicker.AllPacks>
+	
 	<CherryPicker.ThingDef.Desc>Includes things like items, buildings, equipment, plants, and animals.</CherryPicker.ThingDef.Desc>
 	<CherryPicker.TerrainDef.Desc>Floors, both natural and artificial.</CherryPicker.TerrainDef.Desc>
 	<CherryPicker.RecipeDef.Desc>Things you can craft, whether that be cooking, smithing, tailoring, etc.</CherryPicker.RecipeDef.Desc>

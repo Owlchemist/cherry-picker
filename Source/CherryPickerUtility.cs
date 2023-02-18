@@ -58,12 +58,13 @@ namespace CherryPicker
 				allDefs = new IEnumerable<Def>[]
 				{
 					processedDefs,
-					DefDatabase<ThingDef>.AllDefs.Where(x => !x.IsBlueprint && !x.IsFrame && !x.isUnfinishedThing && (x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
+					DefDatabase<ThingDef>.AllDefs.Where(x => !x.IsBlueprint && !x.IsFrame && !x.isUnfinishedThing && 
+						(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
 					DefDatabase<TerrainDef>.AllDefs,
 					DefDatabase<RecipeDef>.AllDefs,
 					DefDatabase<TraitDef>.AllDefs,
-					DefDatabase<ResearchProjectDef>.AllDefs.Where(x => DefDatabase<ResearchProjectDef>.AllDefs.
-									Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true))),
+					DefDatabase<ResearchProjectDef>.AllDefs.Where(x => DefDatabase<ResearchProjectDef>.AllDefs.Any(y => (!y.prerequisites?.Contains(x) ?? true) && 
+						(!y.hiddenPrerequisites?.Contains(x) ?? true))),
 					DefDatabase<DesignationCategoryDef>.AllDefs,
 					DefDatabase<ThingStyleDef>.AllDefs,
 					DefDatabase<QuestScriptDef>.AllDefs.Where(x => !DefDatabase<IncidentDef>.AllDefs.Any(y => y.questScriptDef == x)),
@@ -363,13 +364,11 @@ namespace CherryPicker
 							thingDef.race.herdMigrationAllowed = false;
 							//For farm animal joins event
 							thingDef.race.wildness = 1f;
-
-							/*
-							if (thingDef.race.animalType == AnimalType.Dryad)
+							//Spawn chance
+							foreach (var animalBiomeRecord in thingDef.race.wildBiomes ?? Enumerable.Empty<AnimalBiomeRecord>())
 							{
-								
+								animalBiomeRecord.commonality = 0f;
 							}
-							*/
 						}
 						break;
 					}
@@ -994,10 +993,26 @@ namespace CherryPicker
 				biomeDef.wildPlants?.RemoveAll(x => processedDefs.Contains(x.plant));
 				biomeDef.cachedWildPlants?.RemoveAll(x => processedDefs.Contains(x));
 				biomeDef.cachedPlantCommonalities?.RemoveAll(x => processedDefs.Contains(x.Key));
+				biomeDef.cachedAnimalCommonalities?.RemoveAll(x => processedDefs.Contains(x.Key));
+				biomeDef.cachedPollutionAnimalCommonalities?.RemoveAll(x => processedDefs.Contains(x.Key));
 				//Prevent animal spawning
 				foreach (BiomeAnimalRecord biomeAnimalRecord in biomeDef.wildAnimals ?? Enumerable.Empty<BiomeAnimalRecord>())
 				{
-					if (processedDefs.Contains(biomeAnimalRecord.animal?.race)) biomeAnimalRecord.commonality = 0;
+					if (biomeAnimalRecord.animal == null) continue;
+					if (processedDefs.Contains(biomeAnimalRecord.animal.race) || processedDefs.Contains(biomeAnimalRecord.animal))
+					{
+						biomeAnimalRecord.commonality = 0;
+					}
+				}
+				//Handle pollution cache list
+				if (!ModLister.BiotechInstalled) continue;
+				foreach (BiomeAnimalRecord biomeAnimalRecord in biomeDef.pollutionWildAnimals ?? Enumerable.Empty<BiomeAnimalRecord>())
+				{
+					if (biomeAnimalRecord.animal == null) continue;
+					if (processedDefs.Contains(biomeAnimalRecord.animal.race) || processedDefs.Contains(biomeAnimalRecord.animal))
+					{
+						biomeAnimalRecord.commonality = 0;
+					}
 				}
 			}
 

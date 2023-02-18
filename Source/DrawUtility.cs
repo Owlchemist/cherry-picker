@@ -15,8 +15,9 @@ namespace CherryPicker
 		public static int lineNumber; //Handles row highlighting and also dynamic window size for the scroll bar
 		static int cellPosition; //Tracks the vertical placement in pixels
 		public const int lineHeight = 22; //Text.LineHeight + options.verticalSpacing;
-		public static List<FloatMenuOption> cachedMenu; //Stores the filter drop-down menu, clears when you leave the mod options
+		public static List<FloatMenuOption> cachedDefMenu, cachedModMenu; //Stores the filter drop-down menu, clears when you leave the mod options
 		public static Type filteredType;
+		public static string filteredMod;
 		
 		public static void DrawList(Rect container, Listing_Standard options)
 		{
@@ -27,6 +28,7 @@ namespace CherryPicker
 				Def def = allDefs[i];
 				if (def != null && 
 				(!filtered || (searchStringCache.TryGetValue(def, out string label) && label.Contains(filter) )) &&
+				(filteredMod.NullOrEmpty() || filteredMod == def.modContentPack?.nameInt) &&
 				(filteredType == null || filteredType == def.GetType()) )
 				{
 					cellPosition += lineHeight;
@@ -65,7 +67,7 @@ namespace CherryPicker
 			Widgets.DrawHighlightIfMouseover(rect);
 
 			//Tooltip
-			//TooltipHandler.TipRegion(rect, dataString + "\n\n" + (type == nameof(DefList) ? string.Join(def.description + "\n", ((DefList)def).defs) : def.description));
+			TooltipHandler.TipRegion(rect, "Type: " + type + "\nMod: " + def.modContentPack?.Name + "\nDef: " + def.defName + "\nFilename: " + def.fileName);
 			
 			//Add to working list if missing
 			bool flag = false;
@@ -110,10 +112,10 @@ namespace CherryPicker
 			}
 			Widgets.CheckboxDraw(rect.xMax - 24f, rect.y, checkOn, false, 24f, null, null);
 		}
-		public static List<FloatMenuOption> FloatMenu()
+		public static List<FloatMenuOption> MenuOfDefs()
 		{
-			if (cachedMenu != null) return cachedMenu;
-			cachedMenu = new List<FloatMenuOption>();
+			if (cachedDefMenu != null) return cachedDefMenu;
+			cachedDefMenu = new List<FloatMenuOption>();
 
 			HashSet<string> isDistinct = new HashSet<string>();
 			for (int i = 0; i < allDefs.Length; i++)
@@ -124,28 +126,54 @@ namespace CherryPicker
 				if (nameSpace != "RimWorld" && nameSpace != "Verse" && !DefUtility.typeCache.ContainsKey(label)) continue;
 				if (isDistinct.Add(label))
 				{
-					cachedMenu.Add(new FloatMenuOption(label, delegate()
+					cachedDefMenu.Add(new FloatMenuOption(label, delegate()
 					{
 						ApplyCategoryFilter(label);
 					}, MenuOptionPriority.Default, null, null, 0f, null, null, true, 0));
 				}
 			}
-			cachedMenu.SortBy(x => x.labelInt);
-			cachedMenu.Insert(0, new FloatMenuOption("CherryPicker.AllDefTypes".Translate(), delegate()
+			cachedDefMenu.SortBy(x => x.labelInt);
+			cachedDefMenu.Insert(0, new FloatMenuOption("CherryPicker.AllDefTypes".Translate(), delegate()
 				{
 					ApplyCategoryFilter("AllDefTypes");
 				}, MenuOptionPriority.Default, null, null, 0f, null, null, true, 0));
 
-			return cachedMenu;
+			return cachedDefMenu;
 		}
-		static void ApplyCategoryFilter(string test)
+		static void ApplyCategoryFilter(string defType)
 		{
-			if (test == "AllDefTypes") 
+			if (defType == "AllDefTypes") 
 			{
 				filteredType = null;
 				return;
 			}
-			filteredType = DefUtility.ToType(test, true);
+			filteredType = DefUtility.ToType(defType, true);
+		}
+
+		public static List<FloatMenuOption> MenuOfPacks()
+		{
+			if (cachedModMenu != null) return cachedModMenu;
+			cachedModMenu = new List<FloatMenuOption>();
+
+			foreach (var mod in LoadedModManager.RunningModsListForReading)
+			{
+				string label = mod.Name;
+				cachedModMenu.Add(new FloatMenuOption(label, delegate()
+					{
+						ApplyModFilter(label);
+					}, MenuOptionPriority.Default, null, null, 0f, null, null, true, 0));
+			}
+			cachedModMenu.SortBy(x => x.labelInt);
+			cachedModMenu.Insert(0, new FloatMenuOption("CherryPicker.AllPacks".Translate(), delegate()
+				{
+					ApplyModFilter("");
+				}, MenuOptionPriority.Default, null, null, 0f, null, null, true, 0));
+			return cachedModMenu;
+		}
+
+		static void ApplyModFilter(string modName)
+		{
+			filteredMod = modName;
 		}
 	}
 }

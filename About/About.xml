@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
-	<name>Cherry Picker (dev)</name>
+	<name>Cherry Picker</name>
 	<author>Owlchemist</author>
 	<packageId>Owlchemist.CherryPicker</packageId>
 	<supportedVersions>

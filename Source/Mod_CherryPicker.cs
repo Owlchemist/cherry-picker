@@ -3,6 +3,7 @@ using HarmonyLib;
 using UnityEngine;
 using System.Collections.Generic;
 using System;
+using RimWorld;
 using static CherryPicker.ModSettings_CherryPicker;
 using static CherryPicker.CherryPickerUtility;
 using static CherryPicker.DrawUtility;
@@ -12,6 +13,8 @@ namespace CherryPicker
 	public class DefList : Def { public List<string> defs; }
     public class Mod_CherryPicker : Mod
 	{
+		private QuickSearchWidget quickSearchWidget = new QuickSearchWidget();
+
 		public Mod_CherryPicker(ModContentPack content) : base(content)
 		{
 			new Harmony(this.Content.PackageIdPlayerFacing).PatchAll();
@@ -21,9 +24,7 @@ namespace CherryPicker
 		public override void DoSettingsWindowContents(Rect inRect)
 		{
 			Listing_Standard options = new Listing_Standard();
-			//Make stationary rect for the filter box
-			Rect filterRect = inRect.RightHalf();
-			Rect filterRect2 = inRect.LeftHalf();
+			
 			//Prepare scrollable view area rect
 			Rect scrollViewRect = inRect;
 			scrollViewRect.y += 30f;
@@ -36,31 +37,58 @@ namespace CherryPicker
 			//Calculate size of rect based on content
 			Rect listRect = new Rect(0f, 0f, inRect.width - 30f, (lineNumber + 2) * lineHeight);
 
-			options.Begin(filterRect2);
-				string buttonText = filteredType?.Name;
-				TooltipHandler.TipRegion(new Rect(options.curX, options.curY, options.ColumnWidth, 30), ("CherryPicker." + (buttonText ?? "AllDefs") + ".Desc").Translate() );
-				if (buttonText == null)
+			//=========Def filter Button===========
+			Rect defFilterRect = inRect;
+			defFilterRect.height = 30f;
+			defFilterRect.width *= .33f;
+			options.Begin(defFilterRect);
+				string defTypeButton = filteredType?.Name;
+				TooltipHandler.TipRegion(new Rect(options.curX, options.curY, options.ColumnWidth, 30), ("CherryPicker." + (defTypeButton ?? "AllDefs") + ".Desc").Translate() );
+				if (defTypeButton == null)
 				{
-					buttonText = "CherryPicker.AllDefTypes".Translate();
+					defTypeButton = "CherryPicker.AllDefTypes".Translate();
 				}
-				if (options.ButtonText(buttonText))
+				if (options.ButtonText(defTypeButton))
 				{
 					try
 					{
-						List<FloatMenuOption> buttonMenu = new List<FloatMenuOption>(FloatMenu());
+						List<FloatMenuOption> buttonMenu = new List<FloatMenuOption>(MenuOfDefs());
 						if (buttonMenu.Count != 0)
 						{
 							Find.WindowStack.Add(new FloatMenu(buttonMenu));
 						}
 					}
-					catch (System.Exception ex) { Log.Message("[Cherry Picker] Error creating drop-down menu.\n" + ex); }
+					catch (System.Exception ex) { Log.Message("[Cherry Picker] Error creating def type drop-down menu.\n" + ex); }
 				}
 			options.End();
-			options.Begin(filterRect);
-				filterCache = options.TextEntryLabeled("Filter: ", filterCache);
-				filter = filterCache.ToLower();
-				filtered = !String.IsNullOrEmpty(filter);
+
+			//=========Mod filter Button===========
+			Rect modFilterRect = defFilterRect;
+			modFilterRect.x += defFilterRect.width + 5f;
+			options.Begin(modFilterRect);
+			string packFilterButton = filteredMod.NullOrEmpty() ? "CherryPicker.AllPacks".Translate() : filteredMod;
+			if (options.ButtonText(packFilterButton))
+			{
+				try
+				{
+					List<FloatMenuOption> buttonMenu = new List<FloatMenuOption>(MenuOfPacks());
+					if (buttonMenu.Count != 0)
+					{
+						Find.WindowStack.Add(new FloatMenu(buttonMenu));
+					}
+				}
+				catch (System.Exception ex) { Log.Message("[Cherry Picker] Error creating content pack drop-down menu.\n" + ex); }
+			}
 			options.End();
+
+			//=========Search field===========
+			Rect textFilterRect = modFilterRect;
+			textFilterRect.x += modFilterRect.width + 5f;
+			quickSearchWidget.OnGUI(textFilterRect);
+			filter = quickSearchWidget.filter.Text.ToLower();
+			filtered = !String.IsNullOrEmpty(filter);
+
+			//=========Body===========
 			Widgets.BeginScrollView(scrollViewRect, ref scrollPos, listRect, true);
 				options.Begin(listRect);
 				DrawList(inRect, options);
@@ -79,7 +107,7 @@ namespace CherryPicker
 		public override void WriteSettings()
 		{
 			base.WriteSettings();
-			cachedMenu = null; //Cleanup static to free memory
+			cachedDefMenu = null; //Cleanup static to free memory
 		}
 	}
 
