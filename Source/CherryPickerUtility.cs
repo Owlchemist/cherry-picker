@@ -1109,10 +1109,14 @@ namespace CherryPicker
 			//Process designation removals
 			if (processDesignators)
 			{
-				foreach (DesignationCategoryDef designationCategoryDef in DefDatabase<DesignationCategoryDef>.AllDefsListForReading)
+				for (int i = DefDatabase<DesignationCategoryDef>.defsList.Count; i-- > 0;)
 				{
-					foreach (Type type in designationCategoryDef.specialDesignatorClasses.ToList())
+					var designationCategoryDef = DefDatabase<DesignationCategoryDef>.defsList[i];
+					if (designationCategoryDef.specialDesignatorClasses == null) continue;
+
+					for (int j = designationCategoryDef.specialDesignatorClasses.Count; j-- > 0;)
 					{
+						var type = designationCategoryDef.specialDesignatorClasses[j];
 						if (type == null) continue;
 						Designator designator = (Designator)Activator.CreateInstance(type);
 						if (processedDefs.Contains(designator.Designation))

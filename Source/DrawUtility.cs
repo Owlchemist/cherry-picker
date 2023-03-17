@@ -110,7 +110,7 @@ namespace CherryPicker
 				if (checkOn) SoundDefOf.Checkbox_TurnedOn.PlayOneShotOnCamera(null);
 				else SoundDefOf.Checkbox_TurnedOff.PlayOneShotOnCamera(null);
 			}
-			Widgets.CheckboxDraw(rect.xMax - 24f, rect.y, checkOn, false, 24f, null, null);
+			Widgets.Checkbox(new Vector2(rect.xMax - 24f, rect.y), ref checkOn, 24f, false, true, null, null);
 		}
 		public static List<FloatMenuOption> MenuOfDefs()
 		{
