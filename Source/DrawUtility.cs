@@ -103,13 +103,6 @@ namespace CherryPicker
 				Widgets.Label(dataRect, data?.Truncate(dataRect.width - 12f, InspectPaneUtility.truncatedLabelsCached));
 			}
 
-			//Checkbox
-			if (Widgets.ButtonInvisible(rect, true))
-			{
-				checkOn = !checkOn;
-				if (checkOn) SoundDefOf.Checkbox_TurnedOn.PlayOneShotOnCamera(null);
-				else SoundDefOf.Checkbox_TurnedOff.PlayOneShotOnCamera(null);
-			}
 			Widgets.Checkbox(new Vector2(rect.xMax - 24f, rect.y), ref checkOn, 24f, false, true, null, null);
 		}
 		public static List<FloatMenuOption> MenuOfDefs()

@@ -2,7 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<Product>Cherry Picker</Product>
-		<AssemblyVersion>1.0.55</AssemblyVersion>
+		<AssemblyVersion>1.0.56</AssemblyVersion>
 		<Version>1.4</Version>
 		<Copyright>$([System.DateTime]::Now.ToString('yyyy'))</Copyright>
 		<Company>Owlchemist</Company>
