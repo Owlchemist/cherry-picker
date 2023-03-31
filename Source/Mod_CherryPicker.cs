@@ -95,8 +95,6 @@ namespace CherryPicker
 				Text.Anchor = anchor;
 				options.End();
 			Widgets.EndScrollView();
-			
-			base.DoSettingsWindowContents(inRect);
 		}
 
 		public override string SettingsCategory()
@@ -134,6 +132,6 @@ namespace CherryPicker
 
 		public static HashSet<string> allRemovedDefs = new HashSet<string>();
 		public static Vector2 scrollPos;
-		public static string filterCache, filter;
+		public static string filter;
 	}
 }

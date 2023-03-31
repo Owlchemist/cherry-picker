@@ -12,6 +12,7 @@ namespace CherryPicker
 	{
 		public static Assembly rootAssembly;
 		public static Dictionary<string, Type> typeCache = new Dictionary<string, Type>();
+		static HashSet<string> assumedNameSpaces = new HashSet<string>() {"Verse", "RimWorld"};
 
 		static DefUtility()
 		{
@@ -21,7 +22,12 @@ namespace CherryPicker
 
 		public static string ToKey(this Def def)
 		{
-			return def == null ? "" : (def.GetType().Name + "/" + def.defName);
+			if (def == null) return "";
+			Type type = def.GetType();
+			if (type == null) return "";
+			
+			string key = type.Name + "/" + def.defName;
+			return assumedNameSpaces.Contains(type.Namespace) ? key : key + "/" + def.defName;
 		}
 		public static string ToDefName(this string def)
 		{
@@ -29,10 +35,24 @@ namespace CherryPicker
 		}
 		public static Type ToType(this string typeName, bool literal = false)
 		{
-			if (!literal) typeName = typeName.Split('/')[0];
+			string nameSpace = "";
+			if (!literal) 
+			{
+				var elements = typeName.Split('/');
+				typeName = elements[0];
+				
+				if (elements.Length > 2) nameSpace = elements[2];
+			}
 
-			//Fast handling for vanilla types
 			Type type;
+			//If the namespace is specified, start there
+			if (!nameSpace.NullOrEmpty()) 
+			{
+				type = rootAssembly.GetType(nameSpace + typeName);
+				if (type != null) return type;
+			}
+			
+			//Fast handling for vanilla types
 			type = rootAssembly.GetType("Verse." + typeName) ?? rootAssembly.GetType("RimWorld." + typeName);
 			if (type != null) return type;
 			
@@ -46,10 +66,6 @@ namespace CherryPicker
 		public static string ToTypeString(this string def)
 		{
 			return def.Split('/')[0];
-		}
-		public static Def ToDef(this string key)
-		{
-			return GetDef(key.ToDefName(), key.ToType());
 		}
 		public static Def GetDef(string defName, Type type)
 		{
