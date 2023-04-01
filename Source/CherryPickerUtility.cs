@@ -1316,6 +1316,7 @@ namespace CherryPicker
             {
                 Def blank = (Def) AccessTools.Field(pathDefType, "Blank").GetValue(null);
                 AccessTools.FieldRef<Def, Def[][]> psycasts = AccessTools.FieldRefAccess<Def, Def[][]>(AccessTools.Field(pathDefType, "abilityLevelsInOrder"));
+                AccessTools.FieldRef<Def, IList> abilities = AccessTools.FieldRefAccess<Def, IList>(AccessTools.Field(pathDefType, "abilities"));
                 if (!typeCache.TryGetValue("AbilityExtension_Psycast", out var psycastExtension))
                 {
                     psycastExtension = AccessTools.TypeByName("VanillaPsycastsExpanded.AbilityExtension_Psycast");
@@ -1369,6 +1370,17 @@ namespace CherryPicker
                     }
 
                     psycasts(path) = psycastLevels;
+
+					IList abilitiesList = abilities(path);
+                    for (int i = abilitiesList.Count; i-- > 0;)
+                    {
+                        if (abilitiesList[i] is Def toCheck && processedDefs.Contains(toCheck))
+                        {
+							abilitiesList.RemoveAt(i);
+                        }
+                    }
+
+					abilities(path) = abilitiesList;
                 }
             }
 		}
