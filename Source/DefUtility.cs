@@ -13,8 +13,9 @@ namespace CherryPicker
 		public static Assembly rootAssembly;
 		public static Dictionary<string, Type> typeCache = new Dictionary<string, Type>();
 		static HashSet<string> assumedNameSpaces = new HashSet<string>() {"Verse", "RimWorld"};
+		static Dictionary<string, Assembly> assemblyCache = new Dictionary<string, Assembly>();
 
-		static DefUtility()
+        static DefUtility()
 		{
 			rootAssembly = typeof(ThingDef).Assembly;
 			typeCache.Add("DefList", typeof(DefList));
@@ -24,11 +25,17 @@ namespace CherryPicker
 		{
 			if (def == null) return "";
 			Type type = def.GetType();
-			if (type == null) return "";
 			
 			string key = type.Name + "/" + def.defName;
-			return assumedNameSpaces.Contains(type.Namespace) ? key : key + "/" + def.defName;
-		}
+            string nameSpace = type.Namespace;
+            if (nameSpace == null || assumedNameSpaces.Contains(type.Namespace))
+                return key;
+
+            if (!assemblyCache.ContainsKey(nameSpace))
+				assemblyCache.Add(nameSpace, type.Assembly);
+
+            return key + "/" + nameSpace;
+        }
 		public static string ToDefName(this string def)
 		{
 			return def.Split('/')[1];
@@ -46,9 +53,23 @@ namespace CherryPicker
 
 			Type type;
 			//If the namespace is specified, start there
-			if (!nameSpace.NullOrEmpty()) 
+			if (!nameSpace.NullOrEmpty())
 			{
-				type = rootAssembly.GetType(nameSpace + typeName);
+				//Check the cache for modded types
+                if (typeCache.TryGetValue(typeName, out type) && type.Namespace == nameSpace)
+                {
+                    return type;
+                }
+
+				//Check the cache of assemblies by namespace
+                if (assemblyCache.TryGetValue(nameSpace, out var assembly))
+                {
+                    type = assembly.GetType(nameSpace + "." + typeName);
+				    if (type != null) return type;
+                }
+
+				//If all else fails, try vanilla
+				type = rootAssembly.GetType(nameSpace + "." + typeName);
 				if (type != null) return type;
 			}
 			
@@ -61,6 +82,7 @@ namespace CherryPicker
 			{
 				return type;
 			}
+
 			return null;
 		}
 		public static string ToTypeString(this string def)
