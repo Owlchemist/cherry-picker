@@ -116,12 +116,21 @@ namespace CherryPicker
 				var type = allDefs[i].GetType();
 				var nameSpace = type.Namespace;
 				var label = type.Name;
-				if (nameSpace != "RimWorld" && nameSpace != "Verse" && !DefUtility.typeCache.ContainsKey(label)) continue;
-				if (isDistinct.Add(label))
+				var visualLabel = label;
+                var key = label;
+				if (nameSpace != "RimWorld" && nameSpace != "Verse")
 				{
-					cachedDefMenu.Add(new FloatMenuOption(label, delegate()
+                    if (DefUtility.typeCache.ContainsKey(label))
+                    {
+                        visualLabel = nameSpace + "." + label;
+						key = label + "/_/" + nameSpace;
+                    } else continue;
+				}
+				if (isDistinct.Add(key))
+				{
+					cachedDefMenu.Add(new FloatMenuOption(visualLabel, delegate()
 					{
-						ApplyCategoryFilter(label);
+						ApplyCategoryFilter(key);
 					}, MenuOptionPriority.Default, null, null, 0f, null, null, true, 0));
 				}
 			}
@@ -140,7 +149,7 @@ namespace CherryPicker
 				filteredType = null;
 				return;
 			}
-			filteredType = DefUtility.ToType(defType, true);
+			filteredType = DefUtility.ToType(defType, false);
 		}
 
 		public static List<FloatMenuOption> MenuOfPacks()
