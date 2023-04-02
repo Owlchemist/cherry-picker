@@ -335,7 +335,7 @@ namespace CherryPicker
 							//If implant
 							thingDef.techHediffsTags?.Clear();
 
-							//Some mods filter onto their defs using an extension. For now, their removal will operate through a whitelist until a better solution is written
+							//TODO: Some mods filter onto their defs using an extension. For now, their removal will operate through a whitelist until a better solution is written
 							//Seed = SeedsPlease: Lite
 							thingDef.modExtensions?.RemoveAll(x => x.GetType().Name == "Seed");
 
@@ -343,9 +343,11 @@ namespace CherryPicker
 							if (thingDef.IsDrug)
 							{
 								thingDef.ingestible.drugCategory = DrugCategory.None;
-								foreach (DrugPolicyDef drugPolicyDef in DefDatabase<DrugPolicyDef>.AllDefsListForReading)
+								thingDef.techLevel = TechLevel.Archotech; //Filtered this way in RandomDrugs()
+								var list = DefDatabase<DrugPolicyDef>.AllDefsListForReading;
+								for (int i = list.Count; i-- > 0;)
 								{
-									drugPolicyDef.entries?.RemoveAll(x => x.drug == thingDef);
+									list[i].entries?.RemoveAll(x => x.drug == thingDef);
 								}
 							}
 						}

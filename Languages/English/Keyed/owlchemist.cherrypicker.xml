@@ -55,4 +55,5 @@
 	<CherryPicker.WeaponTraitDef.Desc>These are persona weapon traits.</CherryPicker.WeaponTraitDef.Desc>
 	<CherryPicker.RulePackDef.Desc>These special naming rules, for example how a faction may name their pawns or leaders.</CherryPicker.RulePackDef.Desc>
 	<CherryPicker.DefList.Desc>This is a proprietary Cherry Picker def. Mod authors can create these defLists for their mods to create preset lists of defs that users can add/remove.</CherryPicker.DefList.Desc>
+	<CherryPicker.PsycasterPathDef.Desc>These are the psycast defs from Vanilla Psycasts Expanded mod.</CherryPicker.PsycasterPathDef.Desc>
 </LanguageData>
