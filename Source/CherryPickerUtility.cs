@@ -5,8 +5,6 @@ using System.Collections;
 using System.Linq;
 using RimWorld;
 using HarmonyLib;
-using System.Reflection;
-using System.Reflection.Emit;
 using MonoMod.Utils;
 using static CherryPicker.ModSettings_CherryPicker;
 using static CherryPicker.DefUtility;
@@ -17,18 +15,25 @@ namespace CherryPicker
 	{
 		public static Def[] allDefs; //All defs this mod supports editting
 		public static Dictionary<Def, string> searchStringCache; //Sync'd index with allDefs
-		public static HashSet<string> actualRemovedDefs = new HashSet<string>(); //This is like removedDefs except it only contains defs for this active modlist
-		public static List<string> report = new List<string>(); //Gives a console print of changes made
-		public static HashSet<Def> processedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
-		//public static HashSet<Backstory> removedBackstories = new HashSet<Backstory>(); //Used to keep track of direct DB removals
-		public static bool filtered; //Tells the script the filter box is being used
-		public static bool reprocess; //Flags if the list needs to be processed again, in the event a DefList was appended
-		static bool processDesignators, processBodyTypes, processXenotypes, processRulePackDef, processTerrain, processPsycastPaths, processPsycasts;
-		public static HashSet<string> reprocessDefs = new HashSet<string>(); //These are defs that need to be added to the working list next reprocess
+		static List<string> report = new List<string>(); //Gives a console print of changes made
+		public static bool
+			filtered, //Tells the script the filter box is being used
+			reprocess, //Flags if the list needs to be processed again, in the event a DefList was appended
+			filteredStuff; //The IsStuff harmony patch will only be active if true
+		static bool processDesignators, 
+			processBodyTypes,
+			processXenotypes,
+			processRulePackDef,
+			processTerrain,
+			processPsycastPaths,
+			processPsycasts;
 		public static Dialog_MessageBox reloadGameMessage = new Dialog_MessageBox("CherryPicker.ReloadRequired".Translate(), null, null, null, null, "CherryPicker.ReloadHeader".Translate(), true, null, null, WindowLayer.Dialog);
 		static SimpleCurve zeroCurve = new SimpleCurve() { { new CurvePoint(0, 0), true } };
-		//When comps are removed from items, exempt these
-		static HashSet<Type> compWhitelist = new HashSet<Type>()
+		public static HashSet<Def> processedDefs = new HashSet<Def>(); //Used to keep track of direct DB removals
+		public static HashSet<string>
+			actualRemovedDefs = new HashSet<string>(), //This is like removedDefs except it only contains defs for this active modlist
+			reprocessDefs = new HashSet<string>(); //These are defs that need to be added to the working list next reprocess
+		static HashSet<Type> compWhitelist = new HashSet<Type>() //When comps are removed from items, exempt these
 		{
 			typeof(CompProperties_Drug), typeof(CompProperties_Styleable)
 		};
@@ -97,21 +102,21 @@ namespace CherryPicker
 					DefDatabase<XenotypeDef>.AllDefs,
 					DefDatabase<BodyTypeDef>.AllDefs.Where(x => x != BodyTypeDefOf.Male && x != BodyTypeDefOf.Female),
 					DefDatabase<FactionDef>.AllDefs.Where(x => x.maxConfigurableAtWorldCreation > 0),
-					GetDefFromMod(packageID: "vanillaexpanded.vfea", assemblyName: "VFEAncients", nameSpace: "VFEAncients", typeName: "PowerDef"),
 					DefDatabase<BackstoryDef>.AllDefs,
 					DefDatabase<WeatherDef>.AllDefs,
 					DefDatabase<ScatterableDef>.AllDefs,
 					DefDatabase<RaidAgeRestrictionDef>.AllDefs,
 					DefDatabase<WeaponTraitDef>.AllDefs,
 					DefDatabase<RulePackDef>.AllDefs,
+					DefDatabase<InteractionDef>.AllDefs,
 					DefDatabase<DefList>.AllDefs,
+					GetDefFromMod(packageID: "vanillaexpanded.vfea", assemblyName: "VFEAncients", nameSpace: "VFEAncients", typeName: "PowerDef"),
 					GetDefFromMod(packageID: "oskarpotocki.vanillafactionsexpanded.core", assemblyName:"VFECore", nameSpace:"VFECore.Abilities", typeName:"AbilityDef")
                        .Where(x => x.modExtensions.Any(e => e.GetType().Namespace == "VanillaPsycastsExpanded")),
                     GetDefFromMod(packageID: "vanillaexpanded.vpsycastse", assemblyName: "VanillaPsycastsExpanded", nameSpace: "VanillaPsycastsExpanded", typeName: "PsycasterPathDef")
 				}.SelectMany(x => x).Distinct().ToArray();
 
 				//Process lists
-				MakeLabelCache();
 				MakeWorkingList();
 				ProcessList();
 
@@ -150,14 +155,6 @@ namespace CherryPicker
 			return Enumerable.Empty<Def>();
 		}
 
-		static void MakeLabelCache()
-		{
-			searchStringCache = new Dictionary<Def, string>();
-			foreach (var def in allDefs)
-			{
-				searchStringCache.Add(def, (def?.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower());
-			}
-		}
 		static void MakeWorkingList()
 		{
 			actualRemovedDefs.Clear();
@@ -226,6 +223,16 @@ namespace CherryPicker
 				MakeWorkingList();
 				ProcessList();
 			}
+
+			//Active harmony patches where needed
+			if (filteredStuff)
+			{
+				var method = AccessTools.Property(typeof(ThingDef), nameof(ThingDef.IsStuff)).GetGetMethod();
+				if (Mod_CherryPicker.patchLedger.Add(nameof(method)))
+				{
+					Mod_CherryPicker._harmony.Patch(method, transpiler: new HarmonyMethod(typeof(DynamicPatches), nameof(DynamicPatches.Transpiler_IsStuff)));
+				}
+			}
 		}
 		static bool RemoveDef(Def def)
 		{
@@ -253,6 +260,8 @@ namespace CherryPicker
 							thingDef.SetStatBaseValue(StatDefOf.Nutrition, 0);
 							thingDef.ingestible.preferability = FoodPreferability.NeverForNutrition;
 						}
+
+						if (thingDef.IsStuff) filteredStuff = true;
 						
 						//Remove styles (Ideology)
 						if (ModLister.IdeologyInstalled)
@@ -735,6 +744,14 @@ namespace CherryPicker
 					case nameof(RulePackDef):
 					{
 						processRulePackDef = true;
+						break;
+					}
+
+					case nameof(InteractionDef):
+					{
+						InteractionDef interactionDef = def as InteractionDef;
+						interactionDef.workerInt = (InteractionWorker)Activator.CreateInstance(typeof(InteractionWorker_Dummy));
+						interactionDef.workerInt.interaction = interactionDef;
 						break;
 					}
 					

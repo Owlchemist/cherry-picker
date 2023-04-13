@@ -22,6 +22,8 @@ namespace CherryPicker
 		public static void DrawList(Rect container, Listing_Standard options)
 		{
 			lineNumber = cellPosition = 0; //Reset
+			if (searchStringCache == null) MakeLabelCache();
+			
 			//List out all the unremoved defs from the compiled database
 			for (int i = 0; i < allDefs.Length; i++)
 			{
@@ -37,6 +39,15 @@ namespace CherryPicker
 					if (cellPosition > scrollPos.y - container.height && cellPosition < scrollPos.y + container.height) DrawListItem(options, def);
 				}
 				
+			}
+		}
+		public static void MakeLabelCache()
+		{
+			searchStringCache = new Dictionary<Def, string>();
+			for (int i = allDefs.Length; i-- > 0;)
+			{
+				var def = allDefs[i];
+				searchStringCache.Add(def, (def?.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower());
 			}
 		}
 		public static void DrawListItem(Listing_Standard options, Def def)

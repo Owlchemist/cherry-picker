@@ -3,16 +3,48 @@ using Verse;
 using RimWorld;
 using System.Collections.Generic;
 using System;
-using static CherryPicker.ModSettings_CherryPicker;
+using System.Reflection.Emit;
 using static CherryPicker.CherryPickerUtility;
 
 namespace CherryPicker
 {
+	public static class DynamicPatches
+	{
+		//[HarmonyPatch(typeof(ThingDef), nameof(ThingDef.IsStuff), MethodType.Getter)]
+		public static IEnumerable<CodeInstruction> Transpiler_IsStuff(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+        {
+			var label = generator.DefineLabel();
+			foreach (var instruction in instructions)
+			{
+				if (instruction.opcode == OpCodes.Ldarg_0)
+				{
+					instruction.labels.Add(label);
+					break;
+				}
+			}
+			
+			yield return new CodeInstruction(OpCodes.Ldarg_0);
+			yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(DynamicPatches), nameof(FilterStuff)));
+			yield return new CodeInstruction(OpCodes.Brfalse, label); //If not filtered then just transfer control to normal vanilla handling
+			yield return new CodeInstruction(OpCodes.Ldc_I4_0); //Otherwise, push false to the return
+			yield return new CodeInstruction(OpCodes.Ret);
+
+			foreach (var instruction in instructions)
+			{
+				yield return instruction;
+			}
+		}
+		public static bool FilterStuff(ThingDef __instance)
+		{
+			return Current.ProgramState == ProgramState.MapInitializing && processedDefs.Contains(__instance);
+		}
+	}
+
 	//Makes the devmode spawner respect the psuedo-removed defs
 	[HarmonyPatch(typeof(DebugThingPlaceHelper), nameof(DebugThingPlaceHelper.IsDebugSpawnable))]
-	public class Patch_IsDebugSpawnable
+	class Patch_IsDebugSpawnable
 	{
-		static public bool Postfix(bool __result, ThingDef def)
+		static bool Postfix(bool __result, ThingDef def)
 		{	
 			return processedDefs.Contains(def) ? false : __result;
 		}
@@ -21,37 +53,28 @@ namespace CherryPicker
 	//Attempts to block mods that use c# to equip pawns when it generates them
 	[HarmonyPatch(typeof(Pawn_ApparelTracker), nameof(Pawn_ApparelTracker.Wear))]
 	[HarmonyPriority(Priority.First)]
-	public class Patch_Wear
+	class Patch_Wear
 	{
-		static public bool Prefix(Apparel newApparel)
+		static bool Prefix(Apparel newApparel)
 		{	
 			return processedDefs.Contains(newApparel?.def) ? false : true;
 		}
     }
 
-	[HarmonyPatch(typeof(ThingDef), nameof(ThingDef.IsStuff), MethodType.Getter)]
-	public class Patch_IsStuff
-	{
-		static public bool Postfix(bool __result, ThingDef __instance)
-		{
-			return Current.ProgramState == ProgramState.MapInitializing && processedDefs.Contains(__instance) ? false : __result;
-		}
-	}
-
 	//We patch the next 2 methods because some mods add quests through c# and ignore cherry picker otherwise
 	[HarmonyPatch(typeof(QuestUtility), nameof(QuestUtility.SendLetterQuestAvailable))]
-	public class Patch_QuestUtility
+	class Patch_QuestUtility
 	{
-		static public bool Prefix(Quest quest)
+		static bool Prefix(Quest quest)
 		{	
 			return processedDefs.Contains(quest?.root) ? false : true;
 		}
     }
 
 	[HarmonyPatch(typeof(QuestManager), nameof(QuestManager.Add))]
-	public class Patch_QuestManager
+	class Patch_QuestManager
 	{
-		static public bool Prefix(Quest quest)
+		static bool Prefix(Quest quest)
 		{	
 			return processedDefs.Contains(quest?.root) ? false : true;
 		}
@@ -59,7 +82,7 @@ namespace CherryPicker
 
 	//This is for ideology roles
 	[HarmonyPatch(typeof(ApparelRequirement), nameof(ApparelRequirement.AllRequiredApparel))]
-	public class Patch_AllRequiredApparel
+	class Patch_AllRequiredApparel
 	{
 		static IEnumerable<ThingDef> Postfix(IEnumerable<ThingDef> values)
 		{
@@ -74,7 +97,7 @@ namespace CherryPicker
 		typeof(DamageInfo?),
 		typeof(DamageWorker.DamageResult)
 	})]
-	public class Patch_AddHediff
+	class Patch_AddHediff
 	{
 		static bool Prefix(Hediff hediff)
 		{
@@ -84,13 +107,16 @@ namespace CherryPicker
 
 	//Run a second time to catch defs that are generated on runtime
 	[HarmonyPatch(typeof(MainMenuDrawer), nameof(MainMenuDrawer.MainMenuOnGUI))]
-	public class Patch_MainMenuDrawer_MainMenuOnGUI
+	class Patch_MainMenuDrawer_MainMenuOnGUI
 	{
 		static bool hasRan;
 		static void Postfix()
 		{
-			if (!hasRan) CherryPickerUtility.Setup(true);
-			hasRan = true;
+			if (!hasRan) 
+			{
+				CherryPickerUtility.Setup(true);
+				hasRan = true;
+			}
 		}
     }
 }

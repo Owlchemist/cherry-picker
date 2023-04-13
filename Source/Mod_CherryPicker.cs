@@ -13,11 +13,14 @@ namespace CherryPicker
 	public class DefList : Def { public List<string> defs; }
     public class Mod_CherryPicker : Mod
 	{
-		private QuickSearchWidget quickSearchWidget = new QuickSearchWidget();
+		QuickSearchWidget quickSearchWidget = new QuickSearchWidget();
+		public static Harmony _harmony;
+		public static HashSet<string> patchLedger = new HashSet<string>();
 
 		public Mod_CherryPicker(ModContentPack content) : base(content)
 		{
-			new Harmony(this.Content.PackageIdPlayerFacing).PatchAll();
+			_harmony = new Harmony(this.Content.PackageIdPlayerFacing);
+			_harmony.PatchAll();
 			base.GetSettings<ModSettings_CherryPicker>();
 		}
 
@@ -105,7 +108,9 @@ namespace CherryPicker
 		public override void WriteSettings()
 		{
 			base.WriteSettings();
-			cachedDefMenu = null; //Cleanup static to free memory
+			//Cleanup static to free memory
+			cachedDefMenu = null;
+			searchStringCache = null;
 		}
 	}
 
