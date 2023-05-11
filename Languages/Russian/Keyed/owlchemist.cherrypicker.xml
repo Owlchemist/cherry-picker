@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <CherryPicker.RestartHeader>Требуется перезапуск</CherryPicker.RestartHeader>
+  <CherryPicker.RestartRequired>Восстановление исходных значений требует перезапуска игры.</CherryPicker.RestartRequired>
+
+  <CherryPicker.ReloadHeader>Требуется перезапуск</CherryPicker.ReloadHeader>
+  <CherryPicker.ReloadRequired>Эти конкретные изменения требуют перезагрузки сохранения игры. Перезапускать игру не нужно.</CherryPicker.ReloadRequired>
+
+  <CherryPicker.AllDefTypes>Все типы элемента def</CherryPicker.AllDefTypes>
+  <CherryPicker.AllDefs.Desc>Список всех поддерживаемых дефов.</CherryPicker.AllDefs.Desc>
+
+  <CherryPicker.AllPacks>Все дополнения и моды</CherryPicker.AllPacks>
+
+  <CherryPicker.ThingDef.Desc>Включает такие вещи, как предметы, здания, оборудование, растения и животные.</CherryPicker.ThingDef.Desc>
+  <CherryPicker.TerrainDef.Desc>Полы, как натуральные, так и искусственные.</CherryPicker.TerrainDef.Desc>
+  <CherryPicker.RecipeDef.Desc>Вещи, которые вы можете создавать, будь то кулинария, кузнечное дело, шитье и т.д.</CherryPicker.RecipeDef.Desc>
+  <CherryPicker.TraitDef.Desc>Черты пешки.</CherryPicker.TraitDef.Desc>
+  <CherryPicker.ResearchProjectDef.Desc>Исследовательские проекты.</CherryPicker.ResearchProjectDef.Desc>
+  <CherryPicker.DesignationCategoryDef.Desc>Это категории на вкладке архитектора.</CherryPicker.DesignationCategoryDef.Desc>
+  <CherryPicker.ThingStyleDef.Desc>Это альтернативные стили (Идеология).</CherryPicker.ThingStyleDef.Desc>
+  <CherryPicker.QuestScriptDef.Desc>Квесты - это типы событий, которые обычно включают в себя запрос подтверждения и выбор награды.</CherryPicker.QuestScriptDef.Desc>
+  <CherryPicker.IncidentDef.Desc>Инциденты - это события, которые происходят спонтанно.</CherryPicker.IncidentDef.Desc>
+  <CherryPicker.HediffDef.Desc>Hediffs - это вещи, которые отображаются на вкладке здоровья, например, болезни и баффы/дебаффы.</CherryPicker.HediffDef.Desc>
+  <CherryPicker.ThoughtDef.Desc>Мысли о настроении.</CherryPicker.ThoughtDef.Desc>
+  <CherryPicker.TraderKindDef.Desc>Бродячие торговцы.</CherryPicker.TraderKindDef.Desc>
+  <CherryPicker.GatheringDef.Desc>Собрания - это спонтанные, внутренние мероприятия, такие как вечеринки.</CherryPicker.GatheringDef.Desc>
+  <CherryPicker.WorkTypeDef.Desc>Позволяет скрыть тип работы из пользовательского интерфейса.</CherryPicker.WorkTypeDef.Desc>
+  <CherryPicker.MemeDef.Desc>Типы черт.</CherryPicker.MemeDef.Desc>
+  <CherryPicker.PreceptDef.Desc>Типы принципов.</CherryPicker.PreceptDef.Desc>
+  <CherryPicker.RitualPatternDef.Desc>Типы ритуалов.</CherryPicker.RitualPatternDef.Desc>
+  <CherryPicker.HairDef.Desc>Типы волос.</CherryPicker.HairDef.Desc>
+  <CherryPicker.BeardDef.Desc>Типы бород пешек.</CherryPicker.BeardDef.Desc>
+  <CherryPicker.RaidStrategyDef.Desc>Стратегия налета — это то, что налетчики делают после прибытия, например, немедленная атака или подрыв. См. PawnsArrivalModeDef, чтобы узнать о методах их прибытия.</CherryPicker.RaidStrategyDef.Desc>
+  <CherryPicker.MainButtonDef.Desc>Это кнопки на нижней панели.</CherryPicker.MainButtonDef.Desc>
+  <CherryPicker.AbilityDef.Desc>Это пси-способности, способности к королевскому титулу и способности к идеологической роли.</CherryPicker.AbilityDef.Desc>
+  <CherryPicker.BiomeDef.Desc>Типы биомов.</CherryPicker.BiomeDef.Desc>
+  <CherryPicker.MentalBreakDef.Desc>Типы нервных срывов.</CherryPicker.MentalBreakDef.Desc>
+  <CherryPicker.SpecialThingFilterDef.Desc>Это специальные фильтры, отображаемые в пользовательском интерфейсе конфигурации хранилища и счета.</CherryPicker.SpecialThingFilterDef.Desc>
+  <CherryPicker.PawnKindDef.Desc>В то время как раса (животное, гуманоид, мехи) представляет собой ThingDef, PawnKindDef представляет конкретную конфигурацию для этой расы, например, их снаряжение.</CherryPicker.PawnKindDef.Desc>
+  <CherryPicker.GenStepDef.Desc>Управление шагами, которые игра выполняет при создании новой карты.</CherryPicker.GenStepDef.Desc>
+  <CherryPicker.InspirationDef.Desc>Тип вдохновения, которое пешки могут выбирать полуслучайным образом.</CherryPicker.InspirationDef.Desc>
+  <CherryPicker.StorytellerDef.Desc>Рассказчики.</CherryPicker.StorytellerDef.Desc>
+  <CherryPicker.ScenarioDef.Desc>Сценарии, отображаемые на экране настройки новой игры.</CherryPicker.ScenarioDef.Desc>
+  <CherryPicker.DesignationDef.Desc>Обозначения - это вещи, которые отображаются в меню строительства, но не являются материальными зданиями, а представляют собой приказы, как, например, охота или забой.</CherryPicker.DesignationDef.Desc>
+  <CherryPicker.PawnsArrivalModeDef.Desc>Управляет тем, как рейдеры прибывают на карты.</CherryPicker.PawnsArrivalModeDef.Desc>
+  <CherryPicker.GeneDef.Desc>Типы генов.</CherryPicker.GeneDef.Desc>
+  <CherryPicker.XenotypeDef.Desc>Ксенотипы.</CherryPicker.XenotypeDef.Desc>
+  <CherryPicker.BodyTypeDef.Desc>Графические типы тела пешки, такие как громила, толстый и худой.</CherryPicker.BodyTypeDef.Desc>
+  <CherryPicker.FactionDef.Desc>Фракции. Обратите внимание, что вы также можете просто удалить фракцию на экране настройки нового мира.</CherryPicker.FactionDef.Desc>
+  <CherryPicker.PowerDef.Desc>Силы и способности из модов Vanilla Expanded.</CherryPicker.PowerDef.Desc>
+  <CherryPicker.BackstoryDef.Desc>Истории, которые пешки могут случайно выбрать при генерации.</CherryPicker.BackstoryDef.Desc>
+  <CherryPicker.WeatherDef.Desc>Типы погоды.</CherryPicker.WeatherDef.Desc>
+  <CherryPicker.ScatterableDef.Desc>Scatterables - это неинтерактивная графика, которая нарушает монотонность текстуры земли, например, большие пятна грязи.</CherryPicker.ScatterableDef.Desc>
+  <CherryPicker.RaidAgeRestrictionDef.Desc>Регулировка допустимого возраста рейдеров.</CherryPicker.RaidAgeRestrictionDef.Desc>
+  <CherryPicker.WeaponTraitDef.Desc>Черты персонального оружия.</CherryPicker.WeaponTraitDef.Desc>
+  <CherryPicker.RulePackDef.Desc>Эти специальные правила именования, например, как фракция может называть своих пешек или лидеров.</CherryPicker.RulePackDef.Desc>
+  <CherryPicker.DefList.Desc>Это собственный деф Cherry Picker. Авторы модов могут создавать эти деф-листы для своих модов, чтобы создавать предустановленные списки дефов, которые пользователи могут добавлять/удалять.</CherryPicker.DefList.Desc>
+  <CherryPicker.PsycasterPathDef.Desc>Это дефы псикастов из мода Vanilla Psycasts Expanded.</CherryPicker.PsycasterPathDef.Desc>
+  <CherryPicker.InteractionDef.Desc>Это случайные взаимодействия между пешками, например, общение. Это работает только для взаимодействий, которые выбираются случайным образом.</CherryPicker.InteractionDef.Desc>
+
+</LanguageData>
