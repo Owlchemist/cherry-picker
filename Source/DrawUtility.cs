@@ -47,7 +47,7 @@ namespace CherryPicker
 			for (int i = allDefs.Length; i-- > 0;)
 			{
 				var def = allDefs[i];
-				searchStringCache.Add(def, (def?.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower());
+				searchStringCache.Add(def, (def?.defName + def.label + def.modContentPack?.Name + def.GetType().Name).ToLower());	
 			}
 		}
 		public static void DrawListItem(Listing_Standard options, Def def)

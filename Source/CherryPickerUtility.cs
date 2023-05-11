@@ -8,6 +8,7 @@ using HarmonyLib;
 using MonoMod.Utils;
 using static CherryPicker.ModSettings_CherryPicker;
 using static CherryPicker.DefUtility;
+
 namespace CherryPicker
 {
 	[StaticConstructorOnStartup]
@@ -61,91 +62,98 @@ namespace CherryPicker
 			try
 			{
 				//Fetch all our def lists across multiple categories
-				allDefs = new IEnumerable<Def>[]
-				{
-					processedDefs,
-					DefDatabase<ThingDef>.AllDefs.Where(x => !x.IsBlueprint && !x.IsFrame && !x.isUnfinishedThing && 
-						(x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)),
-					DefDatabase<TerrainDef>.AllDefs,
-					DefDatabase<RecipeDef>.AllDefs,
-					DefDatabase<TraitDef>.AllDefs,
-					DefDatabase<ResearchProjectDef>.AllDefs.Where(x => DefDatabase<ResearchProjectDef>.AllDefs.Any(y => (!y.prerequisites?.Contains(x) ?? true) && 
-						(!y.hiddenPrerequisites?.Contains(x) ?? true))),
-					DefDatabase<DesignationCategoryDef>.AllDefs,
-					DefDatabase<ThingStyleDef>.AllDefs,
-					DefDatabase<QuestScriptDef>.AllDefs.Where(x => !DefDatabase<IncidentDef>.AllDefs.Any(y => y.questScriptDef == x)),
-					DefDatabase<IncidentDef>.AllDefs,
-					DefDatabase<HediffDef>.AllDefs,
-					DefDatabase<ThoughtDef>.AllDefs,
-					DefDatabase<TraderKindDef>.AllDefs,
-					DefDatabase<GatheringDef>.AllDefs,
-					DefDatabase<WorkTypeDef>.AllDefs,
-					DefDatabase<MemeDef>.AllDefs,
-					DefDatabase<PreceptDef>.AllDefs,
-					DefDatabase<RitualPatternDef>.AllDefs,
-					DefDatabase<HairDef>.AllDefs,
-					DefDatabase<BeardDef>.AllDefs,
-					DefDatabase<RaidStrategyDef>.AllDefs,
-					DefDatabase<MainButtonDef>.AllDefs,
-					DefDatabase<AbilityDef>.AllDefs,
-					DefDatabase<BiomeDef>.AllDefs,
-					DefDatabase<MentalBreakDef>.AllDefs,
-					DefDatabase<SpecialThingFilterDef>.AllDefs,
-					DefDatabase<PawnKindDef>.AllDefs.Where(x => x != PawnKindDefOf.Colonist),
-					DefDatabase<GenStepDef>.AllDefs,
-					DefDatabase<InspirationDef>.AllDefs,
-					DefDatabase<StorytellerDef>.AllDefs,
-					DefDatabase<ScenarioDef>.AllDefs,
-					DefDatabase<DesignationDef>.AllDefs,
-					DefDatabase<PawnsArrivalModeDef>.AllDefs,
-					DefDatabase<GeneDef>.AllDefs,
-					DefDatabase<XenotypeDef>.AllDefs,
-					DefDatabase<BodyTypeDef>.AllDefs.Where(x => x != BodyTypeDefOf.Male && x != BodyTypeDefOf.Female),
-					DefDatabase<FactionDef>.AllDefs.Where(x => x.maxConfigurableAtWorldCreation > 0),
-					DefDatabase<BackstoryDef>.AllDefs,
-					DefDatabase<WeatherDef>.AllDefs,
-					DefDatabase<ScatterableDef>.AllDefs,
-					DefDatabase<RaidAgeRestrictionDef>.AllDefs,
-					DefDatabase<WeaponTraitDef>.AllDefs,
-					DefDatabase<RulePackDef>.AllDefs,
-					DefDatabase<InteractionDef>.AllDefs,
-					DefDatabase<DefList>.AllDefs,
-					GetDefFromMod(packageID: "vanillaexpanded.vfea", assemblyName: "VFEAncients", nameSpace: "VFEAncients", typeName: "PowerDef"),
-					GetDefFromMod(packageID: "oskarpotocki.vanillafactionsexpanded.core", assemblyName:"VFECore", nameSpace:"VFECore.Abilities", typeName:"AbilityDef")
-                       .Where(x => x.modExtensions.Any(e => e.GetType().Namespace == "VanillaPsycastsExpanded")),
-                    GetDefFromMod(packageID: "vanillaexpanded.vpsycastse", assemblyName: "VanillaPsycastsExpanded", nameSpace: "VanillaPsycastsExpanded", typeName: "PsycasterPathDef")
-				}.SelectMany(x => x).Distinct().ToArray();
-
-				//Process lists
-				MakeWorkingList();
-				ProcessList();
-
-				if (secondPass)
-				{
-					//Give report
-					if (report.Count > 0)
-					{
-						Log.Message("[Cherry Picker] These dynamically generated defs were also processed" + 
-						(report.Any(x => x.Contains("FAILED:")) ? " <color=red>with " + report.Count(x => x.Contains("FAILED:")).ToString() + " errors</color>" : "") + ": " + 
-						string.Join(", ", report));
-					}
-				}	 
+				allDefs = processedDefs
+					.Concat(DefDatabase<ThingDef>.AllDefs
+						.Where(x => !x.IsBlueprint && !x.IsFrame && !x.isUnfinishedThing && (x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)))
+					.Concat(DefDatabase<ResearchProjectDef>.AllDefs
+						.Where(x => DefDatabase<ResearchProjectDef>.AllDefs.Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true))))
+					.Concat(DefDatabase<BodyTypeDef>.AllDefs
+						.Where(x => x != BodyTypeDefOf.Male && x != BodyTypeDefOf.Female))
+					.Concat(DefDatabase<FactionDef>.AllDefs
+						.Where(x => x.maxConfigurableAtWorldCreation > 0))
+					.Concat(DefDatabase<PawnKindDef>.AllDefs
+						.Where(x => x != PawnKindDefOf.Colonist))
+					.Concat(DefDatabase<QuestScriptDef>.AllDefs
+						.Where(x => !DefDatabase<IncidentDef>.AllDefs.Any(y => y.questScriptDef == x)))
+					.Concat(DefDatabase<TerrainDef>.AllDefs)
+					.Concat(DefDatabase<RecipeDef>.AllDefs)
+					.Concat(DefDatabase<TraitDef>.AllDefs)
+					.Concat(DefDatabase<DesignationCategoryDef>.AllDefs)
+					.Concat(DefDatabase<ThingStyleDef>.AllDefs)
+					.Concat(DefDatabase<IncidentDef>.AllDefs)
+					.Concat(DefDatabase<HediffDef>.AllDefs)
+					.Concat(DefDatabase<ThoughtDef>.AllDefs)
+					.Concat(DefDatabase<TraderKindDef>.AllDefs)
+					.Concat(DefDatabase<GatheringDef>.AllDefs)
+					.Concat(DefDatabase<WorkTypeDef>.AllDefs)
+					.Concat(DefDatabase<MemeDef>.AllDefs)
+					.Concat(DefDatabase<PreceptDef>.AllDefs)
+					.Concat(DefDatabase<RitualPatternDef>.AllDefs)
+					.Concat(DefDatabase<HairDef>.AllDefs)
+					.Concat(DefDatabase<TattooDef>.AllDefs)
+					.Concat(DefDatabase<BeardDef>.AllDefs)
+					.Concat(DefDatabase<RaidStrategyDef>.AllDefs)
+					.Concat(DefDatabase<MainButtonDef>.AllDefs)
+					.Concat(DefDatabase<AbilityDef>.AllDefs)
+					.Concat(DefDatabase<BiomeDef>.AllDefs)
+					.Concat(DefDatabase<MentalBreakDef>.AllDefs)
+					.Concat(DefDatabase<SpecialThingFilterDef>.AllDefs)
+					.Concat(DefDatabase<GenStepDef>.AllDefs)
+					.Concat(DefDatabase<InspirationDef>.AllDefs)
+					.Concat(DefDatabase<StorytellerDef>.AllDefs)
+					.Concat(DefDatabase<ScenarioDef>.AllDefs)
+					.Concat(DefDatabase<DesignationDef>.AllDefs)
+					.Concat(DefDatabase<PawnsArrivalModeDef>.AllDefs)
+					.Concat(DefDatabase<GeneDef>.AllDefs)
+					.Concat(DefDatabase<XenotypeDef>.AllDefs)
+					.Concat(DefDatabase<BackstoryDef>.AllDefs)
+					.Concat(DefDatabase<WeatherDef>.AllDefs)
+					.Concat(DefDatabase<ScatterableDef>.AllDefs)
+					.Concat(DefDatabase<RaidAgeRestrictionDef>.AllDefs)
+					.Concat(DefDatabase<WeaponTraitDef>.AllDefs)
+					.Concat(DefDatabase<RulePackDef>.AllDefs)
+					.Concat(DefDatabase<InteractionDef>.AllDefs)
+					.Concat(DefDatabase<DefList>.AllDefs)
+					.Concat(GetDefFromMod(packageID: "vanillaexpanded.vfea", assemblyName: "VFEAncients", nameSpace: "VFEAncients", typeName: "PowerDef"))
+					.Concat(GetDefFromMod(packageID: "oskarpotocki.vanillafactionsexpanded.core", assemblyName:"VFECore", nameSpace:"VFECore.Abilities", typeName:"AbilityDef")
+                       .Where(x => x.modExtensions.Any(e => e.GetType().Namespace == "VanillaPsycastsExpanded")))
+                    .Concat(GetDefFromMod(packageID: "vanillaexpanded.vpsycastse", assemblyName: "VanillaPsycastsExpanded", nameSpace: "VanillaPsycastsExpanded", typeName: "PsycasterPathDef"))
+					.Distinct() //Some dynamically generated defs can seemingly caused dupes
+					.ToArray();
 			}
 			catch (Exception ex)
 			{                
 				Log.Error("[Cherry Picker] Error constructing master def list...\n" + ex);
 				return;
 			}
+			try
+			{
+				//Process lists
+				MakeWorkingList();
+				ProcessList();
+			}
+			catch (Exception ex)
+			{                
+				Log.Error("[Cherry Picker] Error processing master def list...\n" + ex);
+				return;
+			}
+
+			if (secondPass)
+			{
+				//Give report
+				if (report.Count > 0)
+				{
+					Log.Message("[Cherry Picker] These dynamically generated defs were also processed" + 
+					(report.Any(x => x.Contains("FAILED:")) ? " <color=red>with " + report.Count(x => x.Contains("FAILED:")).ToString() + " errors</color>" : "") + ": " + 
+					string.Join(", ", report));
+				}
+			}	 
 		}
 		static IEnumerable<Def> GetDefFromMod(string packageID, string assemblyName, string nameSpace, string typeName)
 		{
-			ModContentPack mod = LoadedModManager.RunningMods.FirstOrDefault(x => x.PackageId == packageID);
-			if (mod != null) 
+			if (LoadedModManager.RunningMods.FirstOrDefault(x => x.PackageId == packageID) is ModContentPack mod) 
 			{
-				Type type = mod.assemblies.loadedAssemblies
-                        .FirstOrDefault(a => a.GetName().Name == assemblyName)?.GetType(nameSpace + "." + typeName);
-
-				if (type != null)
+				if (mod.assemblies.loadedAssemblies.FirstOrDefault(a => a.GetName().Name == assemblyName)?.GetType(nameSpace + "." + typeName) is Type type)
 				{
 					if (!typeCache.ContainsKey(typeName)) typeCache.Add(typeName, type);
 					return (IEnumerable<Def>)GenGeneric.InvokeStaticMethodOnGenericType(typeof(DefDatabase<>), type, "get_AllDefs");
@@ -227,7 +235,7 @@ namespace CherryPicker
 			//Active harmony patches where needed
 			if (filteredStuff)
 			{
-				var method = AccessTools.Property(typeof(ThingDef), nameof(ThingDef.IsStuff)).GetGetMethod();
+				var method = AccessTools.PropertyGetter(typeof(ThingDef), nameof(ThingDef.IsStuff));
 				if (Mod_CherryPicker.patchLedger.Add(nameof(method)))
 				{
 					Mod_CherryPicker._harmony.Patch(method, transpiler: new HarmonyMethod(typeof(DynamicPatches), nameof(DynamicPatches.Transpiler_IsStuff)));
@@ -240,11 +248,10 @@ namespace CherryPicker
 
 			try
 			{
-				switch(def.GetType().Name)
+				switch(def)
 				{
-					case nameof(Verse.ThingDef):
+					case ThingDef thingDef:
 					{
-						ThingDef thingDef = def as ThingDef;
 						thingDef.BaseMarketValue = 0f; //Market value considered for some spawning
 						thingDef.tradeability = Tradeability.None; //Won't be sold or come from drop pods
 						thingDef.thingCategories?.Clear(); //Filters
@@ -263,27 +270,6 @@ namespace CherryPicker
 
 						if (thingDef.IsStuff) filteredStuff = true;
 						
-						//Remove styles (Ideology)
-						if (ModLister.IdeologyInstalled)
-						{
-							var styleCategoryDefs2 = DefDatabase<StyleCategoryDef>.AllDefsListForReading.Select(x => x.thingDefStyles);
-							//List of lists
-							foreach (List<ThingDefStyle> styleCategoryDef in styleCategoryDefs2)
-							{
-								List<ThingDefStyle> styleDefWorkingList = styleCategoryDef.ToList();
-								//Go through this list
-								foreach (ThingDefStyle thingDefStyles in styleCategoryDef)
-								{
-									if (thingDefStyles.thingDef == thingDef)
-									{
-										var styleDef = thingDefStyles.styleDef;
-										DefDatabase<ThingStyleDef>.AllDefsListForReading.Remove(styleDef);
-										styleDefWorkingList.Remove(thingDefStyles);
-									}
-								}
-							}
-						}
-
 						//Buildables
 						if (thingDef.category == ThingCategory.Building)
 						{
@@ -320,15 +306,15 @@ namespace CherryPicker
 							if (thingDef.stuffProps != null) thingDef.stuffProps.commonality = 0;
 							
 							//If apparel
-							if (thingDef.thingClass == typeof(Apparel) && thingDef.apparel != null)
+							if (thingDef.apparel is ApparelProperties apparelProperties)
 							{
 								reloadRequired = true;
 
-								thingDef.apparel.tags?.Clear();
-								thingDef.apparel.defaultOutfitTags?.Clear();
-								thingDef.apparel.canBeDesiredForIdeo = false;
-								thingDef.apparel.ideoDesireAllowedFactionCategoryTags?.Clear();
-								thingDef.apparel.ideoDesireDisallowedFactionCategoryTags?.Clear();
+								apparelProperties.tags?.Clear();
+								apparelProperties.defaultOutfitTags?.Clear();
+								apparelProperties.canBeDesiredForIdeo = false;
+								apparelProperties.ideoDesireAllowedFactionCategoryTags?.Clear();
+								apparelProperties.ideoDesireDisallowedFactionCategoryTags?.Clear();
 
 								//Some apparrel have special comps which filters target to locate. Remove except for some whitelisted comps which break things if removed
 								thingDef.comps.RemoveAll(x => !compWhitelist.Contains(x.GetType()));
@@ -367,7 +353,6 @@ namespace CherryPicker
 							thingDef.plant.sowTags?.Clear(); //Farming UI
 							thingDef.plant.cavePlant = false; //Mushroom filters
 							thingDef.plant.wildBiomes?.Clear();
-							//thingDef.plant.purpose = PlantPurpose.Misc; //Remove from some filters
 						}
 						
 						//Pawns and animals
@@ -380,18 +365,19 @@ namespace CherryPicker
 							//For farm animal joins event
 							thingDef.race.wildness = 1f;
 							//Spawn chance
-							foreach (var animalBiomeRecord in thingDef.race.wildBiomes ?? Enumerable.Empty<AnimalBiomeRecord>())
+							if (thingDef.race.wildBiomes != null)
 							{
-								animalBiomeRecord.commonality = 0f;
+								foreach (var animalBiomeRecord in thingDef.race.wildBiomes)
+								{
+									animalBiomeRecord.commonality = 0f;
+								}
 							}
 						}
 						break;
 					}
 				
-					case nameof(TerrainDef):
+					case TerrainDef terrainDef:
 					{
-						TerrainDef terrainDef = def as TerrainDef;
-
 						//Hide from architect menus
 						DesignationCategoryDef originalDesignationCategory = terrainDef.designationCategory;
 						terrainDef.designationCategory = null;
@@ -401,14 +387,15 @@ namespace CherryPicker
 						break;
 					}
 				
-					case nameof(RecipeDef):
+					case RecipeDef recipeDef:
 					{
-						RecipeDef recipeDef = def as RecipeDef;
-					
-						foreach (ThingDef x in recipeDef.recipeUsers ?? Enumerable.Empty<ThingDef>())
+						if (recipeDef.recipeUsers != null)
 						{
-							x.recipes?.Remove(recipeDef);
-							x.allRecipesCached?.Remove(recipeDef);
+							foreach (ThingDef x in recipeDef.recipeUsers)
+							{
+								x.recipes?.Remove(recipeDef);
+								x.allRecipesCached?.Remove(recipeDef);
+							}
 						}
 						
 						recipeDef.requiredGiverWorkType = null;
@@ -419,19 +406,19 @@ namespace CherryPicker
 						break;
 					}
 
-					case nameof(TraitDef):
+					case TraitDef traitDef:
 					{
-						DefDatabase<TraitDef>.Remove(def as TraitDef);
+						DefDatabase<TraitDef>.Remove(traitDef);
 						break;
 					}
 					
-					case nameof(ResearchProjectDef):
+					case ResearchProjectDef researchProjectDef:
 					{
-						ResearchProjectDef researchProjectDef = def as ResearchProjectDef;
-
 						//Do any other research project use as a prereq?
-						foreach (ResearchProjectDef entry in DefDatabase<ResearchProjectDef>.AllDefsListForReading)
+						var researchProjectDefList = DefDatabase<ResearchProjectDef>.AllDefsListForReading;
+						for (int i = researchProjectDefList.Count; i-- > 0;)
 						{
+							ResearchProjectDef entry = researchProjectDefList[i];
 							//Subsitute prereqs. Take the removed def's prereqs and apply it to any descendant defs
 							if (entry.prerequisites?.Contains(researchProjectDef) ?? false)
 							{
@@ -450,18 +437,19 @@ namespace CherryPicker
 						break;
 					}
 					
-					case nameof(DesignationCategoryDef):
+					case DesignationCategoryDef designationCategoryDef:
 					{
-						DefDatabase<DesignationCategoryDef>.Remove(def as DesignationCategoryDef);
+						DefDatabase<DesignationCategoryDef>.Remove(designationCategoryDef);
 						if (Current.ProgramState == ProgramState.Playing) reloadRequired = true;
 						break;
 					}
 					
-					case nameof(ThingStyleDef):
+					case ThingStyleDef thingStyleDef:
 					{
-						ThingStyleDef thingStyleDef = def as ThingStyleDef;
-						foreach (var styleCategoryDef in DefDatabase<StyleCategoryDef>.AllDefsListForReading)
+						var styleCategoryDefList = DefDatabase<StyleCategoryDef>.AllDefsListForReading;
+						for (int i = styleCategoryDefList.Count; i-- > 0;)
 						{
+							var styleCategoryDef  = styleCategoryDefList[i];
 							if (!styleCategoryDef.thingDefStyles.Any(y => y.styleDef == thingStyleDef)) continue;
 
 							//Find in list
@@ -476,19 +464,15 @@ namespace CherryPicker
 						break;
 					}
 					
-					case nameof(QuestScriptDef):
-					{
-						QuestScriptDef questScriptDef = def as QuestScriptDef;
-						
+					case QuestScriptDef questScriptDef:
+					{	
 						questScriptDef.rootSelectionWeight = 0; //Makes the IsRootRandomSelected getter return false, which excludes from ChooseNaturalRandomQuest
 						questScriptDef.decreeSelectionWeight = 0; //Excludes decrees
 						break;
 					}
 					
-					case nameof(IncidentDef):
-					{
-						IncidentDef incidentDef = def as IncidentDef;
-						
+					case IncidentDef incidentDef:
+					{	
 						incidentDef.baseChance = 0;
 						incidentDef.baseChanceWithRoyalty = 0;
 						incidentDef.earliestDay = int.MaxValue;
@@ -497,52 +481,59 @@ namespace CherryPicker
 						break;
 					}
 					
-					case nameof(ThoughtDef):
+					case ThoughtDef thoughtDef:
 					{
-						ThoughtDef thoughtDef = def as ThoughtDef;
-
 						thoughtDef.durationDays = 0f;
 						thoughtDef.isMemoryCached = BoolUnknown.Unknown;
 						thoughtDef.minExpectation = new ExpectationDef() { order = int.MaxValue };
 						break;
 					}
 
-					case nameof(TraderKindDef):
+					case TraderKindDef traderKindDef:
 					{
-						((TraderKindDef)def).commonality = 0f;
+						traderKindDef.commonality = 0f;
 						break;
 					}
 
-					case nameof(GatheringDef):
+					case GatheringDef gatheringDef:
 					{
-						((GatheringDef)def).randomSelectionWeight = 0f;
+						gatheringDef.randomSelectionWeight = 0f;
 						break;
 					}
 
-					case nameof(InspirationDef):
+					case InspirationDef inspirationDef:
 					{
-						((InspirationDef)def).baseCommonality = 0f;
+						inspirationDef.baseCommonality = 0f;
 						break;
 					}
 
-					case nameof(WorkTypeDef):
+					case WorkTypeDef workTypeDef:
 					{
-						WorkTypeDef workTypeDef = def as WorkTypeDef;
 						workTypeDef.visible = false;
-						DefDatabase<PawnColumnDef>.AllDefsListForReading.RemoveAll(x => x.workType == workTypeDef);
-						DefDatabase<PawnTableDef>.AllDefsListForReading.ForEach(x => x.columns.RemoveAll(y => y.workType == workTypeDef));
+						
+						var pawnColumnDefList = DefDatabase<PawnColumnDef>.AllDefsListForReading;
+						for (int i = pawnColumnDefList.Count; i-- > 0;)
+						{
+							var pawnColumnDef = pawnColumnDefList[i];
+							if (pawnColumnDef.workType == workTypeDef) pawnColumnDefList.Remove(pawnColumnDef);
+						}
+
+						var pawnTableDefList = DefDatabase<PawnTableDef>.AllDefsListForReading;
+						for (int i = pawnTableDefList.Count; i-- > 0;)
+						{
+							pawnTableDefList[i].columns.RemoveAll(y => y.workType == workTypeDef);
+						}
 						break;
 					}
 
-					case nameof(MemeDef):
+					case MemeDef memeDef:
 					{
-						DefDatabase<MemeDef>.Remove(def as MemeDef);
+						DefDatabase<MemeDef>.Remove(memeDef);
 						break;
 					}
 
-					case nameof(PreceptDef):
+					case PreceptDef preceptDef:
 					{
-						PreceptDef preceptDef = def as PreceptDef;
 						preceptDef.enabledForNPCFactions = false;
 						preceptDef.visible = false;
 						preceptDef.selectionWeight = 0;
@@ -550,39 +541,44 @@ namespace CherryPicker
 						break;
 					}
 
-					case nameof(RitualPatternDef):
+					case RitualPatternDef ritualPatternDef:
 					{
-						DefDatabase<RitualPatternDef>.Remove(def as RitualPatternDef);
+						DefDatabase<RitualPatternDef>.Remove(ritualPatternDef);
 						break;
 					}
 
-					case nameof(HairDef):
+					case HairDef hairDef:
 					{
-						DefDatabase<HairDef>.Remove(def as HairDef);
+						DefDatabase<HairDef>.Remove(hairDef);
 						break;
 					}
 
-					case nameof(BeardDef):
+					case BeardDef beardDef:
 					{
-						DefDatabase<BeardDef>.Remove(def as BeardDef);
+						DefDatabase<BeardDef>.Remove(beardDef);
 						break;
 					}
 
-					case nameof(RaidStrategyDef):
+					case TattooDef tattooDef:
 					{
-						RaidStrategyDef raidStrategyDef = def as RaidStrategyDef;
+						DefDatabase<TattooDef>.Remove(tattooDef);
+						break;
+					}
+
+					case RaidStrategyDef raidStrategyDef:
+					{
 						raidStrategyDef.pointsFactorCurve = zeroCurve;
 						raidStrategyDef.selectionWeightPerPointsCurve = zeroCurve;
 						break;
 					}
 
-					case nameof(MainButtonDef):
+					case MainButtonDef mainButtonDef:
 					{
-						((MainButtonDef)def).buttonVisible = false;
+						mainButtonDef.buttonVisible = false;
 						break;
 					}
 
-					case nameof(AbilityDef) when def is AbilityDef abilityDef:
+					case AbilityDef abilityDef:
 					{
 						abilityDef.level = int.MaxValue; //Won't make it past the random select filters
 						DefDatabase<PreceptDef>.AllDefsListForReading.ForEach(x => x.grantedAbilities?.Remove(abilityDef));
@@ -590,25 +586,24 @@ namespace CherryPicker
 						break;
 					}
 
-					case nameof(BiomeDef):
+					case BiomeDef biomeDef:
 					{
-						((BiomeDef)def).implemented = false;
+						biomeDef.implemented = false;
 						break;
 					}
 
-					case nameof(MentalBreakDef):
+					case MentalBreakDef mentalBreakDef:
 					{
-						((MentalBreakDef)def).baseCommonality = 0;
+						mentalBreakDef.baseCommonality = 0;
 						break;
 					}
 
-					case nameof(SpecialThingFilterDef):
+					case SpecialThingFilterDef specialThingFilterDef:
 					{
-						SpecialThingFilterDef specialThingFilterDef = def as SpecialThingFilterDef;
-						int length = DefDatabase<RecipeDef>.DefCount;
-						for (int i = 0; i < length; ++i)
+						var recipeDefList = DefDatabase<RecipeDef>.AllDefsListForReading;
+						for (int i = recipeDefList.Count; i-- > 0;)
 						{
-							RecipeDef recipeDef = DefDatabase<RecipeDef>.defsList[i];
+							RecipeDef recipeDef = recipeDefList[i];
 							recipeDef.fixedIngredientFilter?.specialFiltersToAllow?.Remove(specialThingFilterDef.defName);
 							recipeDef.fixedIngredientFilter?.specialFiltersToDisallow?.Remove(specialThingFilterDef.defName);
 							recipeDef.defaultIngredientFilter?.specialFiltersToAllow?.Remove(specialThingFilterDef.defName);
@@ -619,16 +614,15 @@ namespace CherryPicker
 						break;
 					}
 
-					case nameof(DefList):
+					case DefList defList:
 					{
 						reprocess = true;
-						reprocessDefs.AddRange(((DefList)def).defs);
+						reprocessDefs.AddRange(defList.defs);
 						break;
 					}
 
-					case nameof(PawnKindDef):
+					case PawnKindDef pawnKindDef:
 					{
-						PawnKindDef pawnKindDef = def as PawnKindDef;
 						pawnKindDef.combatPower = float.MaxValue; //Should make it fail selective filters
 						pawnKindDef.canArriveManhunter = false;
 						pawnKindDef.canBeSapper = false;
@@ -637,126 +631,122 @@ namespace CherryPicker
 						break;
 					}
 
-					case nameof(GenStepDef):
+					case GenStepDef genStepDef:
 					{
-						foreach (MapGeneratorDef mapGeneratorDef in DefDatabase<MapGeneratorDef>.AllDefsListForReading)
+						var mapGeneratorDefList = DefDatabase<MapGeneratorDef>.AllDefsListForReading;
+						for (int i = mapGeneratorDefList.Count; i-- > 0;)
 						{
-							mapGeneratorDef.genSteps?.Remove(def as GenStepDef);
+							mapGeneratorDefList[i].genSteps?.Remove(genStepDef);
 						}
 						break;
 					}
 					
-					case nameof(HediffDef):
+					case HediffDef hediffDef:
 					{
+						break; //Do nothing, this can only be handled via harmony interception
+					}
+
+					case StorytellerDef storytellerDef:
+					{
+						storytellerDef.listVisible = false;
 						break;
 					}
 
-					case nameof(StorytellerDef):
+					case ScenarioDef scenarioDef:
 					{
-						((StorytellerDef)def).listVisible = false;
+						scenarioDef.scenario.showInUI = false;
 						break;
 					}
 
-					case nameof(ScenarioDef):
-					{
-						((ScenarioDef)def).scenario.showInUI = false;
-						break;
-					}
-
-					case nameof(DesignationDef):
+					case DesignationDef designationDef:
 					{
 						processDesignators = true;
 						break;
 					}
 
-					case nameof(FactionDef):
+					case FactionDef factiondef:
 					{
-						FactionDef factiondef = def as FactionDef;
 						factiondef.maxConfigurableAtWorldCreation = -1; //Makes the UI skip it
 						factiondef.startingCountAtWorldCreation = 0;
 						factiondef.requiredCountAtGameStart = 0;
 						break;
 					}
 
-					case nameof(BodyTypeDef):
+					case BodyTypeDef bodyTypeDef:
 					{
 						processBodyTypes = true;
 						break;
 					}
 
-					case nameof(BackstoryDef):
+					case BackstoryDef backstoryDef:
 					{
-						DefDatabase<BackstoryDef>.Remove(def as BackstoryDef);
+						DefDatabase<BackstoryDef>.Remove(backstoryDef);
 						break;
 					}
 
-					case nameof(WeatherDef):
+					case WeatherDef weatherDef:
 					{
-						WeatherDef weatherDef = def as WeatherDef;
 						weatherDef.temperatureRange = new FloatRange(-999f, -998f); //Hack to invalidate for all biomes
 						weatherDef.isBad = false; //Excludes from forced weather
 						break;
 					}
 					
-					case nameof(PawnsArrivalModeDef):
+					case PawnsArrivalModeDef pawnsArrivalModeDef:
 					{
-						PawnsArrivalModeDef pawnsArrivalModeDef = def as PawnsArrivalModeDef;
 						pawnsArrivalModeDef.minTechLevel = TechLevel.Archotech;
 						pawnsArrivalModeDef.pointsFactorCurve = zeroCurve;
 						pawnsArrivalModeDef.selectionWeightCurve = zeroCurve;
 						break;
 					}
 					
-					case nameof(GeneDef):
+					case GeneDef geneDef:
 					{
 						if (!ModLister.BiotechInstalled) break;
-						DefDatabase<GeneDef>.Remove(def as GeneDef);
+						DefDatabase<GeneDef>.Remove(geneDef);
 						break;
 					}
 
-					case nameof(XenotypeDef):
+					case XenotypeDef xenotypeDef:
 					{
 						if (!ModLister.BiotechInstalled) break;
-						DefDatabase<XenotypeDef>.Remove(def as XenotypeDef);
+						DefDatabase<XenotypeDef>.Remove(xenotypeDef);
 						processXenotypes = true;
 						break;
 					}
 
-					case nameof(ScatterableDef):
+					case ScatterableDef scatterableDef:
 					{
-						ScatterableDef scatterableDef = def as ScatterableDef;
 						scatterableDef.scatterType = "null";
 						break;
 					}
 
-					case nameof(RaidAgeRestrictionDef):
+					case RaidAgeRestrictionDef raidAgeRestrictionDef:
 					{
-						((RaidAgeRestrictionDef)def).chance = 0f;
+						raidAgeRestrictionDef.chance = 0f;
 						break;
 					}
 
-					case nameof(WeaponTraitDef):
+					case WeaponTraitDef weaponTraitDef:
 					{
-						((WeaponTraitDef)def).commonality = 0f;
+						weaponTraitDef.commonality = 0f;
 						break;
 					}
 
-					case nameof(RulePackDef):
+					case RulePackDef rulePackDef:
 					{
 						processRulePackDef = true;
 						break;
 					}
 
-					case nameof(InteractionDef):
+					case InteractionDef interactionDef:
 					{
-						InteractionDef interactionDef = def as InteractionDef;
 						interactionDef.workerInt = (InteractionWorker)Activator.CreateInstance(typeof(InteractionWorker_Dummy));
 						interactionDef.workerInt.interaction = interactionDef;
 						break;
 					}
 					
 					//Mod: Vanilla Factions Expanded: Ancients
-					case "PowerDef":
+					case Def poweDef when poweDef.GetType().Name == "PowerDef":
 					{
 						if (typeCache.TryGetValue("PowerDef", out Type type))
 						{
@@ -766,7 +756,7 @@ namespace CherryPicker
 					}
 
 					//Mod: Vanilla Psycasts Expanded
-                    case "PsycasterPathDef":
+					case Def psycasterPathDef when psycasterPathDef.GetType().Name == "PsycasterPathDef":
                     {
                         if (typeCache.TryGetValue("PsycasterPathDef", out Type type))
                         {
@@ -780,7 +770,7 @@ namespace CherryPicker
 					
 					//Mod: Vanilla Psycasts Expanded
 					//Need to check to see if its a psycast, or a different sort of ability
-                    case "AbilityDef" when def.modExtensions.Any(e => e.GetType().Namespace == "VanillaPsycastsExpanded"):
+					case Def abilityDef when abilityDef.GetType().Name == "AbilityDef" && (def.modExtensions.Any(e => e.GetType().Namespace == "VanillaPsycastsExpanded") ):
                     {
                         processPsycasts = true; //Need to remove psycasts from paths and handle prereqs
                         break;
@@ -838,6 +828,12 @@ namespace CherryPicker
 					case nameof(BeardDef):
 					{
 						DefDatabase<BeardDef>.Add(def as BeardDef);
+						break;
+					}
+
+					case nameof(TattooDef):
+					{
+						DefDatabase<TattooDef>.Add(def as TattooDef);
 						break;
 					}
 
@@ -910,19 +906,19 @@ namespace CherryPicker
 			}
 
 			//Processes scenario starting items
-			int length = DefDatabase<ScenarioDef>.DefCount;
-			for (int i = 0; i < length; ++i)
+			var scenarioDefList = DefDatabase<ScenarioDef>.defsList;
+			for (int i = scenarioDefList.Count; i-- > 0;)
 			{
-				ScenarioDef scenarioDef = DefDatabase<ScenarioDef>.defsList[i];
-				scenarioDef.scenario.parts?.RemoveAll(y => y.GetType() == typeof(ScenPart_StartingThing_Defined) && 
-					processedDefs.Contains(((ScenPart_StartingThing_Defined)y).thingDef));
+				ScenarioDef scenarioDef = scenarioDefList[i];
+				scenarioDef.scenario.parts?.RemoveAll(y => y is ScenPart_StartingThing_Defined scenPar && 
+					processedDefs.Contains(scenPar.thingDef));
 
 				if(processXenotypes)
 				{
-					foreach (var scenPart in scenarioDef.scenario?.parts ?? Enumerable.Empty<ScenPart>())
+					if (scenarioDef.scenario?.parts is not List<ScenPart> parts) continue;
+					foreach (var scenPart in parts)
 					{
-						ScenPart_ConfigPage_ConfigureStartingPawns_Xenotypes xenoScenPart = scenPart as ScenPart_ConfigPage_ConfigureStartingPawns_Xenotypes;
-						if (xenoScenPart == null) continue;
+						if (scenPart is not ScenPart_ConfigPage_ConfigureStartingPawns_Xenotypes xenoScenPart) continue;
 						xenoScenPart.overrideKinds?.RemoveAll(x => processedDefs.Contains(x.xenotype));
 						xenoScenPart.xenotypeCounts?.RemoveAll(x => processedDefs.Contains(x.xenotype));
 					}
@@ -930,14 +926,22 @@ namespace CherryPicker
 			}
 
 			//Processes recipes using removed items
-			length = DefDatabase<RecipeDef>.DefCount;
-			for (int i = 0; i < length; ++i)
+			var recipeDefList = DefDatabase<RecipeDef>.defsList;
+			for (int i = recipeDefList.Count; i-- > 0;)
 			{
-				RecipeDef recipeDef = DefDatabase<RecipeDef>.defsList[i];
-				foreach (IngredientCount ingredientCount in recipeDef.ingredients ?? Enumerable.Empty<IngredientCount>())
+				RecipeDef recipeDef = recipeDefList[i];
+
+				if (recipeDef.ingredients is not List<IngredientCount> ingredients) continue;
+				bool somethingRemoved = false;
+				foreach (IngredientCount ingredientCount in ingredients)
 				{
 					ingredientCount.filter?.thingDefs?.RemoveAll(x => processedDefs.Contains(x));
-					ingredientCount.filter?.allowedDefs?.RemoveWhere(x => processedDefs.Contains(x));
+					somethingRemoved = ingredientCount.filter?.allowedDefs?.RemoveWhere(x => processedDefs.Contains(x)) > 0 || somethingRemoved;
+				}
+
+				if (somethingRemoved && ingredients.All(x => x.filter.allowedDefs.Count == 0))
+				{
+					DefDatabase<RecipeDef>.Remove(recipeDef); //This is mainly to handle dynamically generated receipes such as Administer_<drugDef>
 				}
 
 				recipeDef.fixedIngredientFilter?.thingDefs?.RemoveAll(x => processedDefs.Contains(x));
@@ -946,11 +950,11 @@ namespace CherryPicker
 				recipeDef.defaultIngredientFilter?.allowedDefs?.RemoveWhere(x => processedDefs.Contains(x));
 			}
 
-			//Process vaious references within thingDefs
-			length = DefDatabase<ThingDef>.DefCount;
-			for (int i = 0; i < length; ++i)
+			//Process various references within thingDefs
+			var thingDefList = DefDatabase<ThingDef>.defsList;
+			for (int i = thingDefList.Count; i-- > 0;)
 			{
-				ThingDef thingDef = DefDatabase<ThingDef>.defsList[i];
+				ThingDef thingDef = thingDefList[i];
 				//Costlists
 				thingDef.costList?.RemoveAll(x => processedDefs.Contains(x?.thingDef));
 				thingDef.costListForDifficulty?.costList?.RemoveAll(x => processedDefs.Contains(x?.thingDef));
@@ -968,16 +972,15 @@ namespace CherryPicker
 				//Kill leavings
 				thingDef.killedLeavings?.RemoveAll(x => processedDefs.Contains(x?.thingDef));
 				//Process out spawner comps
-				foreach (CompProperties compProperties in thingDef.comps ?? Enumerable.Empty<CompProperties>())
+				if (thingDef.comps == null) continue;
+				foreach (CompProperties compProperties in thingDef.comps)
 				{
-					if (compProperties.compClass == typeof(CompSpawner))
+					if (compProperties is CompProperties_Spawner compProperties_Spawner)
 					{
-						CompProperties_Spawner compProperties_Spawner = compProperties as CompProperties_Spawner;
-						if (compProperties_Spawner != null && processedDefs.Contains(compProperties_Spawner.thingToSpawn)) compProperties_Spawner.spawnCount = 0;
+						if (processedDefs.Contains(compProperties_Spawner.thingToSpawn)) compProperties_Spawner.spawnCount = 0;
 					}
-					else if (compProperties.compClass == typeof(CompSpawnerPawn))
+					else if (compProperties is CompProperties_SpawnerPawn compProperties_SpawnerPawn)
 					{
-						CompProperties_SpawnerPawn compProperties_SpawnerPawn = compProperties as CompProperties_SpawnerPawn;
 						compProperties_SpawnerPawn.spawnablePawnKinds?.RemoveAll(x => processedDefs.Contains(x));
 						//Seems the game already has handling if the list becomes 0 counted.
 					}
@@ -985,33 +988,30 @@ namespace CherryPicker
 			}
 			
 			//Process TraderKindDef for removed items
-			length = DefDatabase<TraderKindDef>.DefCount;
-			for (int i = 0; i < length; ++i)
+			var traderKindDefList = DefDatabase<TraderKindDef>.defsList;
+			for (int i = traderKindDefList.Count; i-- > 0;)
 			{
-				TraderKindDef traderKindDef = DefDatabase<TraderKindDef>.defsList[i];
+				TraderKindDef traderKindDef = traderKindDefList[i];
 				
-				var tmpList = traderKindDef.stockGenerators?.ToList();
-				foreach (var stockGenerator in tmpList ?? Enumerable.Empty<StockGenerator>())
+				var stockGeneratorsList = traderKindDef.stockGenerators;
+				for (int j = stockGeneratorsList?.Count ?? 0; j-- > 0;)
 				{
-					StockGenerator_MultiDef stockGenerator_MultiDef = stockGenerator as StockGenerator_MultiDef;
-					if (stockGenerator_MultiDef != null)
+					var stockGenerator = stockGeneratorsList[j];
+					if (stockGenerator is StockGenerator_MultiDef stockGenerator_MultiDef)
 					{
 						stockGenerator_MultiDef.thingDefs?.RemoveAll(x => processedDefs.Contains(x));
 
 						//If defs were removed and this list is now empty, remove the whole generator
 						if (stockGenerator_MultiDef.thingDefs.Count == 0) traderKindDef.stockGenerators.Remove(stockGenerator);
-						continue;
 					}
-
-					StockGenerator_SingleDef stockGenerator_SingleDef = stockGenerator as StockGenerator_SingleDef;
-					if (stockGenerator_SingleDef != null && processedDefs.Contains(stockGenerator_SingleDef.thingDef))
+					else if (stockGenerator is StockGenerator_SingleDef stockGenerator_SingleDef && processedDefs.Contains(stockGenerator_SingleDef.thingDef))
 					{
 						traderKindDef.stockGenerators.Remove(stockGenerator);
 					}
 				}
 			}
 
-            Type extensionType = null;
+			Type extensionType = null;
             AccessTools.FieldRef<DefModExtension, object> getUnlockData = null;
             AccessTools.FieldRef<object, Def> getPath = null;
 			//If we changed paths, we need to ensure they are properly removed from spawning
@@ -1034,10 +1034,10 @@ namespace CherryPicker
             }
 
             //Process pawnkinds that reference this item
-			length = DefDatabase<PawnKindDef>.DefCount;
-			for (int i = 0; i < length; ++i)
+			var pawnKindDefList = DefDatabase<PawnKindDef>.defsList;
+			for (int i = pawnKindDefList.Count; i-- > 0;)
 			{
-				PawnKindDef pawnKindDef = DefDatabase<PawnKindDef>.defsList[i];
+				PawnKindDef pawnKindDef = pawnKindDefList[i];
 				pawnKindDef.apparelRequired?.RemoveAll(x => processedDefs.Contains(x));
 				pawnKindDef.techHediffsRequired?.RemoveAll(x => processedDefs.Contains(x));
 				//Omits from manhunter event
@@ -1066,27 +1066,30 @@ namespace CherryPicker
 			}
 
 			//Processes biomes
-			length = DefDatabase<BiomeDef>.DefCount;
-			for (int i = 0; i < length; ++i)
+			var biomeDefList = DefDatabase<BiomeDef>.defsList;
+			for (int i = biomeDefList.Count; i-- > 0;)
 			{
-				BiomeDef biomeDef = DefDatabase<BiomeDef>.defsList[i];
+				BiomeDef biomeDef = biomeDefList[i];
 				biomeDef.wildPlants?.RemoveAll(x => processedDefs.Contains(x.plant));
 				biomeDef.cachedWildPlants?.RemoveAll(x => processedDefs.Contains(x));
 				biomeDef.cachedPlantCommonalities?.RemoveAll(x => processedDefs.Contains(x.Key));
 				biomeDef.cachedAnimalCommonalities?.RemoveAll(x => processedDefs.Contains(x.Key));
 				biomeDef.cachedPollutionAnimalCommonalities?.RemoveAll(x => processedDefs.Contains(x.Key));
 				//Prevent animal spawning
-				foreach (BiomeAnimalRecord biomeAnimalRecord in biomeDef.wildAnimals ?? Enumerable.Empty<BiomeAnimalRecord>())
+				if (biomeDef.wildAnimals != null)
 				{
-					if (biomeAnimalRecord.animal == null) continue;
-					if (processedDefs.Contains(biomeAnimalRecord.animal.race) || processedDefs.Contains(biomeAnimalRecord.animal))
+					foreach (BiomeAnimalRecord biomeAnimalRecord in biomeDef.wildAnimals)
 					{
-						biomeAnimalRecord.commonality = 0;
+						if (biomeAnimalRecord.animal == null) continue;
+						if (processedDefs.Contains(biomeAnimalRecord.animal.race) || processedDefs.Contains(biomeAnimalRecord.animal))
+						{
+							biomeAnimalRecord.commonality = 0;
+						}
 					}
 				}
 				//Handle pollution cache list
-				if (!ModLister.BiotechInstalled) continue;
-				foreach (BiomeAnimalRecord biomeAnimalRecord in biomeDef.pollutionWildAnimals ?? Enumerable.Empty<BiomeAnimalRecord>())
+				if (!ModLister.BiotechInstalled || biomeDef.pollutionWildAnimals == null) continue;
+				foreach (BiomeAnimalRecord biomeAnimalRecord in biomeDef.pollutionWildAnimals)
 				{
 					if (biomeAnimalRecord.animal == null) continue;
 					if (processedDefs.Contains(biomeAnimalRecord.animal.race) || processedDefs.Contains(biomeAnimalRecord.animal))
@@ -1097,144 +1100,28 @@ namespace CherryPicker
 			}
 
 			//Processes gensteps
-			length = DefDatabase<GenStepDef>.DefCount;
-			for (int i = 0; i < length; ++i)
+			var genStepDefList = DefDatabase<GenStepDef>.defsList;
+			for (int i = genStepDefList.Count; i-- > 0;)
 			{
-				GenStepDef genStepDef = DefDatabase<GenStepDef>.defsList[i];
-				GenStep_ScatterGroup genStep_ScatterGroup = genStepDef.genStep as GenStep_ScatterGroup;
-				if (genStep_ScatterGroup != null)
+				var genStep = genStepDefList[i].genStep;
+				if (genStep is GenStep_ScatterGroup genStep_ScatterGroup)
 				{
 					foreach (GenStep_ScatterGroup.ScatterGroup scatterGroup in genStep_ScatterGroup.groups)
 					{
 						scatterGroup.things.RemoveAll(x => processedDefs.Contains(x.thing));
 					}
 				}
-				GenStep_ScatterThings genStep_ScatterThings = genStepDef.genStep as GenStep_ScatterThings;
-				if (genStep_ScatterThings != null && processedDefs.Contains(genStep_ScatterThings.thingDef))
+				if (genStep is GenStep_ScatterThings genStep_ScatterThings && processedDefs.Contains(genStep_ScatterThings.thingDef))
 				{
 					genStep_ScatterThings.clusterSize = 0;
 				}
 			}
 
-			//Remove removed genes from xenotypes
-			if (ModLister.BiotechInstalled)
-			{
-				length = DefDatabase<XenotypeDef>.DefCount;
-				for (int i = 0; i < length; ++i)
-				{
-					XenotypeDef xenotypeDef = DefDatabase<XenotypeDef>.defsList[i];
-					xenotypeDef.genes?.RemoveAll(x => processedDefs.Contains(x));
-				}
-
-				if (processXenotypes)
-				{
-					length = DefDatabase<FactionDef>.DefCount;
-					for (int i = 0; i < length; ++i)
-					{
-						FactionDef factionDef = DefDatabase<FactionDef>.defsList[i];
-						factionDef.xenotypeSet?.xenotypeChances?.RemoveAll(x => processedDefs.Contains(x.xenotype));
-					}
-					if (ModLister.ideologyInstalled)
-					{
-						length = DefDatabase<MemeDef>.DefCount;
-						for (int i = 0; i < length; ++i)
-						{
-							MemeDef memeDef = DefDatabase<MemeDef>.defsList[i];
-							memeDef.xenotypeSet?.xenotypeChances?.RemoveAll(x => processedDefs.Contains(x.xenotype));
-						}
-					}
-				}
-
-				//Process boss groups
-				length = DefDatabase<BossgroupDef>.DefCount;
-				for (int i = 0; i < length; ++i)
-				{
-					BossgroupDef bossgroupDef = DefDatabase<BossgroupDef>.defsList[i];
-					foreach (BossGroupWave bossGroupWave in bossgroupDef.waves ?? Enumerable.Empty<BossGroupWave>())
-					{
-						bossGroupWave.escorts?.RemoveAll(x => processedDefs.Contains(x.kindDef));
-					}
-				}
-			}
-
-			//Processes styles (Ideology)
-			if (ModLister.IdeologyInstalled)
-			{
-				var styleCategoryDefs2 = DefDatabase<StyleCategoryDef>.AllDefs.Select(x => x.thingDefStyles);
-				//List of lists
-				foreach (List<ThingDefStyle> styleCategoryDef in styleCategoryDefs2)
-				{
-					List<ThingDefStyle> styleDefWorkingList = styleCategoryDef.ToList();
-					//Go through this list
-					foreach (ThingDefStyle thingDefStyles in styleCategoryDef)
-					{
-						if (processedDefs.Contains(thingDefStyles.thingDef))
-						{
-							var styleDef = thingDefStyles.styleDef;
-							DefDatabase<ThingStyleDef>.AllDefsListForReading.Remove(styleDef);
-							styleDefWorkingList.Remove(thingDefStyles);
-						}
-					}
-				}
-
-				//Is this building used for a ideology precept?
-				length = DefDatabase<PreceptDef>.DefCount;
-				for (int i = 0; i < length; ++i)
-				{
-					PreceptDef preceptDef = DefDatabase<PreceptDef>.defsList[i];
-					preceptDef.buildingDefChances?.RemoveAll(x => processedDefs.Contains(x.def));
-				}
-			}
-
-			//Process designation removals
-			if (processDesignators)
-			{
-				for (int i = DefDatabase<DesignationCategoryDef>.defsList.Count; i-- > 0;)
-				{
-					var designationCategoryDef = DefDatabase<DesignationCategoryDef>.defsList[i];
-					if (designationCategoryDef.specialDesignatorClasses == null) continue;
-
-					for (int j = designationCategoryDef.specialDesignatorClasses.Count; j-- > 0;)
-					{
-						var type = designationCategoryDef.specialDesignatorClasses[j];
-						if (type == null) continue;
-						Designator designator = (Designator)Activator.CreateInstance(type);
-						if (processedDefs.Contains(designator.Designation))
-						{
-							designationCategoryDef.specialDesignatorClasses?.Remove(type);
-							designationCategoryDef.resolvedDesignators?.Remove(designator);
-						}
-					}
-				}
-			}
-
-			//Process body types from the backstory db
-			if (processBodyTypes)
-			{
-				foreach (BackstoryDef backstory in DefDatabase<BackstoryDef>.AllDefsListForReading)
-				{
-					if (processedDefs.Contains(backstory.bodyTypeMale)) backstory.bodyTypeMale = BodyTypeDefOf.Male;
-					if (processedDefs.Contains(backstory.bodyTypeFemale)) backstory.bodyTypeFemale = BodyTypeDefOf.Female;
-					if (processedDefs.Contains(backstory.bodyTypeGlobal)) backstory.bodyTypeGlobal = null;
-				}
-			}
-
-			//Process terrain
-			if (processTerrain)
-			{
-				length = DefDatabase<TerrainDef>.DefCount;
-				for (int i = 0; i < length; ++i)
-				{
-					TerrainDef terrainDef = DefDatabase<TerrainDef>.defsList[i];
-					terrainDef.researchPrerequisites?.RemoveAll(x => processedDefs.Contains(x));
-				}
-			}
-			
 			//Process factions
-			length = DefDatabase<FactionDef>.DefCount;
-			for (int i = 0; i < length; ++i)
+			var factionDefList = DefDatabase<FactionDef>.defsList;
+			for (int i = factionDefList.Count; i-- > 0;)
 			{
-				FactionDef factionDef = DefDatabase<FactionDef>.defsList[i];
+				FactionDef factionDef = factionDefList[i];
 				//If a pawnkind was removed that a faction defaulted to, change the default to Colonist
 				if (processedDefs.Contains(factionDef.basicMemberKind)) factionDef.basicMemberKind = PawnKindDefOf.Colonist;
 
@@ -1255,14 +1142,136 @@ namespace CherryPicker
 					senatorResearch?.RemoveAll(x => processedDefs.Contains(x));
 				}
 			}
+			
+			//Remove removed genes from xenotypes
+			if (ModLister.BiotechInstalled)
+			{
+				var xenotypeDefList = DefDatabase<XenotypeDef>.defsList;
+				for (int i = xenotypeDefList.Count; i-- > 0;)
+				{
+					xenotypeDefList[i].genes?.RemoveAll(x => processedDefs.Contains(x));
+				}
 
+				if (processXenotypes)
+				{
+					for (int i = factionDefList.Count; i-- > 0;)
+					{
+						factionDefList[i].xenotypeSet?.xenotypeChances?.RemoveAll(x => processedDefs.Contains(x.xenotype));
+					}
+					if (ModLister.ideologyInstalled)
+					{
+						var memeDefList = DefDatabase<MemeDef>.defsList;
+						for (int i = memeDefList.Count; i-- > 0;)
+						{
+							memeDefList[i].xenotypeSet?.xenotypeChances?.RemoveAll(x => processedDefs.Contains(x.xenotype));
+						}
+					}
+				}
+
+				//Process boss groups
+				var bossgroupDefList = DefDatabase<BossgroupDef>.defsList;
+				for (int i = bossgroupDefList.Count; i-- > 0;)
+				{
+					BossgroupDef bossgroupDef = bossgroupDefList[i];
+					if (bossgroupDef.waves == null) continue;
+					foreach (BossGroupWave bossGroupWave in bossgroupDef.waves)
+					{
+						bossGroupWave.escorts?.RemoveAll(x => processedDefs.Contains(x.kindDef));
+					}
+				}
+			}
+
+			//Processes styles and Precepts (Ideology)
+			if (ModLister.IdeologyInstalled)
+			{
+				//List of lists
+				foreach (List<ThingDefStyle> styleCategoryDefList in DefDatabase<StyleCategoryDef>.AllDefs.Select(x => x.thingDefStyles))
+				{
+					//Go through this list
+					for (int i = styleCategoryDefList.Count; i-- > 0;)
+					{
+						ThingDefStyle thingDefStyles = styleCategoryDefList[i];
+						if (processedDefs.Contains(thingDefStyles.thingDef))
+						{
+							DefDatabase<ThingStyleDef>.Remove(thingDefStyles.styleDef);
+							styleCategoryDefList.Remove(thingDefStyles);
+						}
+					}
+				}
+
+				//Is this building used for a ideology precept?
+				var preceptDefList = DefDatabase<PreceptDef>.defsList;
+				for (int i = preceptDefList.Count; i-- > 0;)
+				{
+					PreceptDef preceptDef = preceptDefList[i];
+					preceptDef.buildingDefChances?.RemoveAll(x => processedDefs.Contains(x.def));
+					if (preceptDef.roleApparelRequirements == null) continue;
+
+					var roleApparelRequirementsList = preceptDef.roleApparelRequirements;
+					for (int j = roleApparelRequirementsList.Count; j-- > 0;)
+					{
+						var roleApparelRequirements = roleApparelRequirementsList[j];
+						if (roleApparelRequirements.requirement?.requiredDefs?.RemoveAll(x => processedDefs.Contains(x)) > 0 && roleApparelRequirements.requirement.requiredDefs.Count == 0)
+						{
+							roleApparelRequirementsList.Remove(roleApparelRequirements);
+						}
+					}
+				}
+			}
+
+			//Process designation removals
+			if (processDesignators)
+			{
+				var designationCategoryDefList = DefDatabase<DesignationCategoryDef>.defsList;
+				for (int i = designationCategoryDefList.Count; i-- > 0;)
+				{
+					var designationCategoryDef = designationCategoryDefList[i];
+					if (designationCategoryDef.specialDesignatorClasses == null) continue;
+
+					for (int j = designationCategoryDef.specialDesignatorClasses.Count; j-- > 0;)
+					{
+						var type = designationCategoryDef.specialDesignatorClasses[j];
+						if (type == null) continue;
+						Designator designator = (Designator)Activator.CreateInstance(type);
+						if (processedDefs.Contains(designator.Designation))
+						{
+							designationCategoryDef.specialDesignatorClasses?.Remove(type);
+							designationCategoryDef.resolvedDesignators?.Remove(designator);
+						}
+					}
+				}
+			}
+
+			//Process body types from the backstory db
+			if (processBodyTypes)
+			{
+				var backstoryDefList = DefDatabase<BackstoryDef>.defsList;
+				for (int i = backstoryDefList.Count; i-- > 0;)
+				{
+					BackstoryDef backstory = backstoryDefList[i];
+					if (processedDefs.Contains(backstory.bodyTypeMale)) backstory.bodyTypeMale = BodyTypeDefOf.Male;
+					if (processedDefs.Contains(backstory.bodyTypeFemale)) backstory.bodyTypeFemale = BodyTypeDefOf.Female;
+					if (processedDefs.Contains(backstory.bodyTypeGlobal)) backstory.bodyTypeGlobal = null;
+				}
+			}
+
+			//Process terrain
+			if (processTerrain)
+			{
+				var terrainDefList = DefDatabase<TerrainDef>.defsList;
+				for (int i = terrainDefList.Count; i-- > 0;)
+				{
+					terrainDefList[i].researchPrerequisites?.RemoveAll(x => processedDefs.Contains(x));
+				}
+			}
+			
 			//Process cultures
 			if (processRulePackDef)
 			{
-				length = DefDatabase<CultureDef>.DefCount;
-				for (int i = 0; i < length; ++i)
+				var cultureDefList = DefDatabase<CultureDef>.defsList;
+				for (int i = cultureDefList.Count; i-- > 0;)
 				{
-					CultureDef cultureDef = DefDatabase<CultureDef>.defsList[i];
+					CultureDef cultureDef = cultureDefList[i];
 					if (processedDefs.Contains(cultureDef.pawnNameMaker)) cultureDef.pawnNameMaker = null;
 					if (processedDefs.Contains(cultureDef.pawnNameMakerFemale)) cultureDef.pawnNameMakerFemale = null;
 					if (processedDefs.Contains(cultureDef.leaderTitleMaker)) cultureDef.leaderTitleMaker = null;
@@ -1270,18 +1279,16 @@ namespace CherryPicker
 			}	
 			
 			//ThingSetMakerDef
-			length = DefDatabase<ThingSetMakerDef>.DefCount;
-			for (int i = 0; i < length; ++i)
+			var thingSetMakerDefList = DefDatabase<ThingSetMakerDef>.defsList;
+			for (int i = thingSetMakerDefList.Count; i-- > 0;)
 			{
-				ThingSetMakerDef thingSetMakerDef = DefDatabase<ThingSetMakerDef>.defsList[i];
+				ThingSetMaker thingSetMaker = thingSetMakerDefList[i].root;
 
-				ThingSetMaker_Sum thingSetMaker_Sum = thingSetMakerDef.root as ThingSetMaker_Sum;
-				if (thingSetMaker_Sum == null) continue;
-				foreach (var option in thingSetMaker_Sum.options ?? Enumerable.Empty<ThingSetMaker_Sum.Option>())
+				if (thingSetMaker is not ThingSetMaker_Sum thingSetMaker_Sum || thingSetMaker_Sum.options.NullOrEmpty()) continue;
+				foreach (var option in thingSetMaker_Sum.options)
 				{
-					ThingSetMaker_RandomOption thingSetMaker_RandomOption = option?.thingSetMaker as ThingSetMaker_RandomOption;
-					if (thingSetMaker_RandomOption == null) continue;
-					foreach (var item in thingSetMaker_RandomOption.options ?? Enumerable.Empty<ThingSetMaker_RandomOption.Option>())
+					if (option.thingSetMaker is not ThingSetMaker_RandomOption thingSetMaker_RandomOption || thingSetMaker_RandomOption.options.NullOrEmpty()) continue;
+					foreach (var item in thingSetMaker_RandomOption.options)
 					{
 						//Remove rewards based on a specific item, if that item was removed
 						if (item.weightIfPlayerHasNoItemItem != null && processedDefs.Contains(item.weightIfPlayerHasNoItemItem))
@@ -1297,8 +1304,7 @@ namespace CherryPicker
 						}
 
 						//Remove rewards that come from a specific faction, if faction was removed
-						ThingSetMaker_Conditional_MakingFaction thingSetMaker_Conditional_MakingFaction = item.thingSetMaker as ThingSetMaker_Conditional_MakingFaction;
-						if (thingSetMaker_Conditional_MakingFaction == null) continue;
+						if (item.thingSetMaker is not ThingSetMaker_Conditional_MakingFaction thingSetMaker_Conditional_MakingFaction) continue;
 						if (processedDefs.Contains(thingSetMaker_Conditional_MakingFaction.makingFaction)) 
 						{
 							item.weight = 0f;
@@ -1322,8 +1328,7 @@ namespace CherryPicker
                     foreach (var obj in paths.Values)
                     {
                         var list = obj as IList;
-                        length = list.Count;
-                        for (int i = length; i -- > 0;)
+                        for (int i = list.Count; i-- > 0;)
                         {
                             if (processedDefs.Contains(list[i])) list.RemoveAt(i);
                         }

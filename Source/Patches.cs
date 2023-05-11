@@ -24,7 +24,7 @@ namespace CherryPicker
 			}
 			
 			yield return new CodeInstruction(OpCodes.Ldarg_0);
-			yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(DynamicPatches), nameof(FilterStuff)));
+			yield return new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(DynamicPatches), nameof(Validate)));
 			yield return new CodeInstruction(OpCodes.Brfalse, label); //If not filtered then just transfer control to normal vanilla handling
 			yield return new CodeInstruction(OpCodes.Ldc_I4_0); //Otherwise, push false to the return
 			yield return new CodeInstruction(OpCodes.Ret);
@@ -34,7 +34,7 @@ namespace CherryPicker
 				yield return instruction;
 			}
 		}
-		public static bool FilterStuff(ThingDef __instance)
+		public static bool Validate(ThingDef __instance)
 		{
 			return Current.ProgramState == ProgramState.MapInitializing && processedDefs.Contains(__instance);
 		}
@@ -80,16 +80,6 @@ namespace CherryPicker
 		}
     }
 
-	//This is for ideology roles
-	[HarmonyPatch(typeof(ApparelRequirement), nameof(ApparelRequirement.AllRequiredApparel))]
-	class Patch_AllRequiredApparel
-	{
-		static IEnumerable<ThingDef> Postfix(IEnumerable<ThingDef> values)
-		{
-			foreach (var thingDef in values) if (!processedDefs.Contains(thingDef)) yield return thingDef;
-		}
-    }
-
 	[HarmonyPatch(typeof(Pawn_HealthTracker), nameof(Pawn_HealthTracker.AddHediff), new Type[]
 	{
 		typeof(Hediff),
@@ -97,7 +87,7 @@ namespace CherryPicker
 		typeof(DamageInfo?),
 		typeof(DamageWorker.DamageResult)
 	})]
-	class Patch_AddHediff
+	class Patch_Pawn_HealthTracker_AddHediff
 	{
 		static bool Prefix(Hediff hediff)
 		{
@@ -109,14 +99,10 @@ namespace CherryPicker
 	[HarmonyPatch(typeof(MainMenuDrawer), nameof(MainMenuDrawer.MainMenuOnGUI))]
 	class Patch_MainMenuDrawer_MainMenuOnGUI
 	{
-		static bool hasRan;
 		static void Postfix()
 		{
-			if (!hasRan) 
-			{
-				CherryPickerUtility.Setup(true);
-				hasRan = true;
-			}
+			CherryPickerUtility.Setup(true);
+			new Harmony("Owlchemist.CherryPicker.Unpatcher").Unpatch(AccessTools.Method(typeof(MainMenuDrawer), nameof(MainMenuDrawer.MainMenuOnGUI)), HarmonyPatchType.Postfix, "Owlchemist.CherryPicker");
 		}
     }
 }

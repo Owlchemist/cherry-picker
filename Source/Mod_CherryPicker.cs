@@ -19,7 +19,7 @@ namespace CherryPicker
 
 		public Mod_CherryPicker(ModContentPack content) : base(content)
 		{
-			_harmony = new Harmony(this.Content.PackageIdPlayerFacing);
+			_harmony = new Harmony("Owlchemist.CherryPicker");
 			_harmony.PatchAll();
 			base.GetSettings<ModSettings_CherryPicker>();
 		}
