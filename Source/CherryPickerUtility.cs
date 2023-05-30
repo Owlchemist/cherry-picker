@@ -66,7 +66,7 @@ namespace CherryPicker
 					.Concat(DefDatabase<ThingDef>.AllDefs
 						.Where(x => !x.IsBlueprint && !x.IsFrame && !x.isUnfinishedThing && (x.category == ThingCategory.Item || x.category == ThingCategory.Building || x.category == ThingCategory.Plant || x.category == ThingCategory.Pawn)))
 					.Concat(DefDatabase<ResearchProjectDef>.AllDefs
-						.Where(x => DefDatabase<ResearchProjectDef>.AllDefs.Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true))))
+						.Where(x => DefDatabase<ResearchProjectDef>.AllDefs.Any(y => (!y.prerequisites?.Contains(x) ?? true) && (!y.hiddenPrerequisites?.Contains(x) ?? true))))?
 					.Concat(DefDatabase<BodyTypeDef>.AllDefs
 						.Where(x => x != BodyTypeDefOf.Male && x != BodyTypeDefOf.Female))
 					.Concat(DefDatabase<FactionDef>.AllDefs
@@ -74,7 +74,7 @@ namespace CherryPicker
 					.Concat(DefDatabase<PawnKindDef>.AllDefs
 						.Where(x => x != PawnKindDefOf.Colonist))
 					.Concat(DefDatabase<QuestScriptDef>.AllDefs
-						.Where(x => !DefDatabase<IncidentDef>.AllDefs.Any(y => y.questScriptDef == x)))
+						.Where(x => !DefDatabase<IncidentDef>.AllDefs.Any(y => y.questScriptDef == x)))?
 					.Concat(DefDatabase<TerrainDef>.AllDefs)
 					.Concat(DefDatabase<RecipeDef>.AllDefs)
 					.Concat(DefDatabase<TraitDef>.AllDefs)
@@ -116,7 +116,7 @@ namespace CherryPicker
 					.Concat(DefDatabase<DefList>.AllDefs)
 					.Concat(GetDefFromMod(packageID: "vanillaexpanded.vfea", assemblyName: "VFEAncients", nameSpace: "VFEAncients", typeName: "PowerDef"))
 					.Concat(GetDefFromMod(packageID: "oskarpotocki.vanillafactionsexpanded.core", assemblyName:"VFECore", nameSpace:"VFECore.Abilities", typeName:"AbilityDef")
-                       .Where(x => x.modExtensions.Any(e => e.GetType().Namespace == "VanillaPsycastsExpanded")))
+                       .Where(x => x.modExtensions.Any(e => e.GetType().Namespace == "VanillaPsycastsExpanded")))?
                     .Concat(GetDefFromMod(packageID: "vanillaexpanded.vpsycastse", assemblyName: "VanillaPsycastsExpanded", nameSpace: "VanillaPsycastsExpanded", typeName: "PsycasterPathDef"))
 					.Distinct() //Some dynamically generated defs can seemingly caused dupes
 					.ToArray();
